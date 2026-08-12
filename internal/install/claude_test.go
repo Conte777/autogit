@@ -154,6 +154,34 @@ func TestInstallReplacesItsOwnOldHookEntry(t *testing.T) {
 	}
 }
 
+// An absolute binary path is the normal case, and the entry has to be
+// recognised as ours next time or every install appends a duplicate.
+func TestInstallIsIdempotentWithAnAbsoluteBinaryPath(t *testing.T) {
+	dir := claudeDir(t, `{"hooks":{"UserPromptSubmit":[
+	  {"hooks":[{"type":"command","command":"other-tool hook"}]}
+	]}}`)
+	o := opts(dir)
+	o.Binary = "/usr/local/bin/autogit"
+
+	for range 3 {
+		p, err := install.PlanInstall(o)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := p.Apply(); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	raw, _ := json.Marshal(settingsOf(t, dir)["hooks"])
+	if got := strings.Count(string(raw), "/usr/local/bin/autogit hook"); got != 1 {
+		t.Errorf("%d autogit hook entries after three installs, want 1:\n%s", got, raw)
+	}
+	if !strings.Contains(string(raw), "other-tool hook") {
+		t.Errorf("another tool's hook was dropped:\n%s", raw)
+	}
+}
+
 func TestInstallWritesThroughASymlink(t *testing.T) {
 	real := t.TempDir()
 	target := filepath.Join(real, "settings.json")
