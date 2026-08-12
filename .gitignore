@@ -1,0 +1,34 @@
+# build output
+/autogit
+/dist/
+*.exe
+*.test
+*.out
+coverage.*
+
+# go workspace / local tool state
+go.work
+go.work.sum
+vendor/
+.golangci-cache/
+
+# editors and IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS junk
+.DS_Store
+._*
+Thumbs.db
+desktop.ini
+
+# local overrides and scratch
+.env
+.env.*
+*.local
+/tmp/
+/scratch/
+.claude/settings.local.json

@@ -1,0 +1,33 @@
+pre-commit:
+  parallel: false
+  jobs:
+    - name: gofumpt
+      glob: "*.go"
+      run: gofumpt -l -w {staged_files}
+      stage_fixed: true
+
+    - name: go vet
+      glob: "*.go"
+      run: go vet ./...
+
+    # golangci-lint takes packages, not files: a file list spanning two
+    # directories is a type-check error, not a lint run.
+    - name: golangci-lint
+      glob: "*.go"
+      run: |
+        dirs=$(printf '%s\n' {staged_files} | xargs -n1 dirname | sort -u)
+        golangci-lint run --fast-only $dirs
+
+    - name: gitleaks
+      run: gitleaks protect --staged --redact --no-banner
+
+pre-push:
+  parallel: false
+  jobs:
+    - name: go test
+      run: go test ./...
+
+    - name: go mod tidy
+      run: |
+        go mod tidy
+        git diff --exit-code -- go.mod go.sum

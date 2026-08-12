@@ -1,0 +1,48 @@
+version: "2"
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - contextcheck
+    - copyloopvar
+    - errorlint
+    - forbidigo
+    - gocritic
+    - gosec
+    - misspell
+    - nilerr
+    - noctx
+    - revive
+
+  settings:
+    govet:
+      enable:
+        - shadow
+    forbidigo:
+      # Output must funnel through internal/ui: a stray Print in the MCP server
+      # writes into the JSON-RPC stream on stdout and kills the session.
+      forbid:
+        - pattern: ^fmt\.Print.*$
+          msg: use internal/ui for output
+    revive:
+      rules:
+        - name: exported
+          disabled: true
+    gosec:
+      excludes:
+        - G204 # git/claude are invoked with argv slices, never a shell string
+    gocritic:
+      disabled-checks:
+        - ifElseChain
+
+  exclusions:
+    rules:
+      - path: (^|/)(internal/ui|cmd)/
+        linters: [forbidigo]
+      - path: _test\.go
+        linters: [gosec, noctx, errcheck, forbidigo]
+
+formatters:
+  enable:
+    - gofumpt
