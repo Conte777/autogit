@@ -21,8 +21,8 @@ import (
 const EmptyTree = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 
 const (
-	defaultTimeout = 30 * time.Second
-	commitTimeout  = 30 * time.Second
+	defaultTimeout       = 30 * time.Second
+	defaultCommitTimeout = 30 * time.Second
 )
 
 // ErrNotARepo is returned by Open when path is outside any git repository.
@@ -54,6 +54,9 @@ type Options struct {
 	// Interactive allows git to prompt on the terminal (credential helpers,
 	// pinentry). Off for mcp/hook, where a prompt hangs the surface forever.
 	Interactive bool
+	// CommitTimeout bounds `git commit`. A signing setup that waits on
+	// pinentry would otherwise hang the caller forever. 0 uses the default.
+	CommitTimeout time.Duration
 }
 
 // Repo is an open git working tree.
@@ -92,6 +95,13 @@ func Open(ctx context.Context, dir string, opts Options) (*Repo, error) {
 
 // Root is the absolute path of the working tree.
 func (r *Repo) Root() string { return r.root }
+
+func (r *Repo) commitTimeout() time.Duration {
+	if r.opts.CommitTimeout > 0 {
+		return r.opts.CommitTimeout
+	}
+	return defaultCommitTimeout
+}
 
 func (r *Repo) run(ctx context.Context, timeout time.Duration, stdin string, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
@@ -291,7 +301,7 @@ func (r *Repo) Commit(ctx context.Context, msg string) (Result, error) {
 	// -F - because `-m` is not what git's own editor path does, and
 	// --cleanup=whitespace because the default strips body lines starting
 	// with '#'.
-	if _, err := r.run(ctx, commitTimeout, msg, "commit", "--cleanup=whitespace", "-F", "-"); err != nil {
+	if _, err := r.run(ctx, r.commitTimeout(), msg, "commit", "--cleanup=whitespace", "-F", "-"); err != nil {
 		return Result{}, err
 	}
 	// A commit-msg hook may have rewritten the message; report what landed.

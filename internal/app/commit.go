@@ -254,8 +254,9 @@ func (a *App) generateMessage(ctx context.Context, branch git.Branch, diff git.D
 		return gen.Result{}, err
 	}
 
+	// WantBody shapes the prompt only. "a body is unnecessary here" is a
+	// heuristic, and enforcing it would burn every retry on a legitimate body.
 	rules := format.CommitRules(branchSlug, scopes)
-	rules.AllowBody = data.WantBody || format.Body.Mode == "always"
 	return a.generate(ctx, gen.Request{System: system, Prompt: user, Validator: rules})
 }
 
