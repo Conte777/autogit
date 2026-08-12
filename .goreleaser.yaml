@@ -41,5 +41,4 @@ homebrew_casks:
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     homepage: https://github.com/Conte777/autogit
-    description: Generate git commit messages and branch names with an LLM
-    binary: autogit
+    description: Generate commit messages and ref names with an LLM
