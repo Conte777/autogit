@@ -42,3 +42,11 @@ homebrew_casks:
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     homepage: https://github.com/Conte777/autogit
     description: Generate commit messages and ref names with an LLM
+    hooks:
+      post:
+        # The binary is unsigned, so Gatekeeper quarantines it and the first run
+        # dies with "developer cannot be verified".
+        install: |
+          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/autogit"]
+          end
