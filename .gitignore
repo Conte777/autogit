@@ -32,3 +32,5 @@ desktop.ini
 /tmp/
 /scratch/
 .claude/settings.local.json
+
+!CLAUDE.md
