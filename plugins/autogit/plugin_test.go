@@ -34,10 +34,13 @@ type hookEntry struct {
 	Timeout int    `json:"timeout"`
 }
 
+type hookGroup struct {
+	Matcher string      `json:"matcher"`
+	Hooks   []hookEntry `json:"hooks"`
+}
+
 type hookFile struct {
-	Hooks map[string][]struct {
-		Hooks []hookEntry `json:"hooks"`
-	} `json:"hooks"`
+	Hooks map[string][]hookGroup `json:"hooks"`
 }
 
 func readJSON[T any](t *testing.T, path string) T {
@@ -107,11 +110,11 @@ func TestCommandSetMatchesTheHook(t *testing.T) {
 	slices.Sort(shipped)
 	slices.Sort(want)
 	if diff := cmp.Diff(want, shipped); diff != "" {
-		t.Errorf("shipped commands differ from the operations the hook understands (-want +got):\n%s", diff)
+		t.Errorf("shipped commands differ from the kinds the hook accepts (-want +got):\n%s", diff)
 	}
 }
 
-func TestEachStubIsReachableAndDegrades(t *testing.T) {
+func TestEachStubIsHookOnly(t *testing.T) {
 	for _, kind := range hook.Kinds() {
 		body, err := os.ReadFile(filepath.Join("commands", string(kind)+".md"))
 		if err != nil {
@@ -120,6 +123,9 @@ func TestEachStubIsReachableAndDegrades(t *testing.T) {
 		cmd, ok := hook.Parse("/autogit:" + string(kind))
 		if !ok || cmd.Kind != kind {
 			t.Errorf("hook does not answer /autogit:%s", kind)
+		}
+		if !strings.Contains(string(body), "disable-model-invocation: true") {
+			t.Errorf("commands/%s.md lets the model answer the command itself instead of the hook", kind)
 		}
 		if !strings.Contains(string(body), "did not run") {
 			t.Errorf("commands/%s.md drops the explanation the model reads when the hook is absent", kind)
@@ -149,12 +155,19 @@ func TestHooksRunTheBinaryFromPath(t *testing.T) {
 	if len(start) != 1 || len(start[0].Hooks) != 1 {
 		t.Fatalf("SessionStart declares %d groups, want exactly one entry", len(start))
 	}
+	if start[0].Matcher != "startup" {
+		t.Errorf("SessionStart matcher = %q, want %q: resume and clear would repeat the warning",
+			start[0].Matcher, "startup")
+	}
 	check := start[0].Hooks[0].Command
 	if !strings.Contains(check, "command -v autogit") {
 		t.Errorf("SessionStart does not probe PATH for autogit: %q", check)
 	}
 	if !strings.Contains(check, "brew install Conte777/tap/autogit") {
 		t.Errorf("SessionStart does not name the install command: %q", check)
+	}
+	if !strings.Contains(check, `"hookEventName":"SessionStart"`) {
+		t.Errorf("SessionStart payload is not tagged with its event, so Claude Code reads it as raw context: %q", check)
 	}
 }
 

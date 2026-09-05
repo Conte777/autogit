@@ -14,10 +14,11 @@
     ],
     "SessionStart": [
       {
+        "matcher": "startup",
         "hooks": [
           {
             "type": "command",
-            "command": "command -v autogit >/dev/null 2>&1 || printf '%s\\n' '{\"systemMessage\":\"autogit is not on PATH, so /autogit:commit, /autogit:commit-msg and /autogit:branch will do nothing. Install it with: brew install Conte777/tap/autogit\"}'",
+            "command": "command -v autogit >/dev/null 2>&1 || printf '%s\\n' '{\"systemMessage\":\"autogit is not on PATH, so /autogit:commit, /autogit:commit-msg and /autogit:branch will do nothing. Install it with: brew install Conte777/tap/autogit\",\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"autogit is not on PATH, so /autogit:commit, /autogit:commit-msg and /autogit:branch will do nothing. Install it with: brew install Conte777/tap/autogit\"}}'",
             "timeout": 5
           }
         ]

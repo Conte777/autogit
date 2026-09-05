@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 )
@@ -30,8 +31,9 @@ const (
 	KindBranch    Kind = "branch"
 )
 
-// Kinds lists every operation the hook answers, in the order a user meets them.
-// The plugin's command set is checked against it.
+// Kinds lists every Kind the trigger accepts, in the order a user meets them.
+// The plugin ships one slash-command stub per entry and its test holds the two
+// sets against each other, so a Kind added here without a stub fails the build.
 func Kinds() []Kind { return []Kind{KindCommit, KindCommitMsg, KindBranch} }
 
 // Command is a parsed slash command.
@@ -56,8 +58,18 @@ type decision struct {
 	SystemMessage string `json:"systemMessage,omitempty"`
 }
 
-// commit-msg must be tried before commit: it is a prefix of it.
-var trigger = regexp.MustCompile(`^\s*/(?:autogit:)?(commit-msg|commit|branch)(?:\s|$)`)
+var trigger = regexp.MustCompile(`^\s*/(?:autogit:)?(` + alternation() + `)(?:\s|$)`)
+
+// alternation spells Kinds as a regexp branch, longest first so that a Kind
+// which is a prefix of another — commit against commit-msg — never wins.
+func alternation() string {
+	names := make([]string, 0, len(Kinds()))
+	for _, kind := range Kinds() {
+		names = append(names, regexp.QuoteMeta(string(kind)))
+	}
+	slices.SortStableFunc(names, func(a, b string) int { return len(b) - len(a) })
+	return strings.Join(names, "|")
+}
 
 // Run reads the hook payload, and blocks the prompt when it matched. Anything
 // that did not match leaves the prompt alone and exits silently.
