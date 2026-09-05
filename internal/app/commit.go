@@ -57,7 +57,6 @@ type CommitRequest struct {
 	// Preview generates the message and stops — this is `commit-msg`, which is
 	// the same code path so that the preview cannot differ from the commit.
 	Preview bool
-	NoInput bool
 }
 
 // CommitResult is what happened.
@@ -138,7 +137,7 @@ func (a *App) Commit(ctx context.Context, req CommitRequest) (CommitResult, erro
 		return out, nil
 	}
 
-	if confirmErr := a.confirmCommit(req, out.Message); confirmErr != nil {
+	if confirmErr := a.confirmCommit(out.Message); confirmErr != nil {
 		return CommitResult{}, confirmErr
 	}
 
@@ -184,7 +183,7 @@ func (a *App) checkProtected(branch git.Branch, req CommitRequest) error {
 	if branch.Detached || req.Force || !validate.IsProtected(branch.Name, a.Config.ProtectedBranches) {
 		return nil
 	}
-	if a.interactive() && !req.NoInput {
+	if a.Prompt.Interactive() {
 		ok, err := a.Prompt.Confirm(
 			fmt.Sprintf("Branch %q is protected. Commit anyway?", branch.Name), false)
 		if err != nil {
@@ -237,7 +236,7 @@ func (a *App) stage(ctx context.Context, req CommitRequest, allowEmpty bool) err
 		return ErrNothingToCommit
 	}
 
-	if !a.interactive() || req.NoInput {
+	if !a.Prompt.Interactive() {
 		return fmt.Errorf("%w: the working tree has changes but the index is empty; "+
 			"stage them yourself, or pass --all (everything) or --tracked (tracked files only)",
 			ErrNothingToCommit)
@@ -274,10 +273,10 @@ func (a *App) stage(ctx context.Context, req CommitRequest, allowEmpty bool) err
 	return nil
 }
 
-func (a *App) confirmCommit(req CommitRequest, message string) error {
-	// `confirm` is a terminal courtesy. Honouring it on mcp/hook would let a
-	// global `confirm: true` deadlock the agent path.
-	if !a.Config.Confirm || req.NoInput || !a.interactive() {
+func (a *App) confirmCommit(message string) error {
+	// `confirm` is a terminal courtesy. Honouring it where nobody can answer
+	// would let a global `confirm: true` deadlock the agent path.
+	if !a.Config.Confirm || !a.Prompt.Interactive() {
 		return nil
 	}
 	ok, err := a.Prompt.Confirm("Commit this message?\n\n"+indent(message)+"\n", true)

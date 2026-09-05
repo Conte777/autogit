@@ -11,11 +11,12 @@ import (
 	"github.com/Conte777/autogit/internal/ui"
 )
 
-func openRepo(ctx context.Context, path string, surface app.Surface) (*git.Repo, error) {
+// openRepo gives git the same permission to ask that autogit has.
+func openRepo(ctx context.Context, path string, prompter ui.Prompter) (*git.Repo, error) {
 	if path == "" {
 		path = "."
 	}
-	return git.Open(ctx, path, git.Options{Interactive: surface == app.SurfaceCLI})
+	return git.Open(ctx, path, git.Options{Interactive: prompter.Interactive()})
 }
 
 func commitCmd(g *globals, out *ui.UI) *cobra.Command {
@@ -38,7 +39,6 @@ func commitCmd(g *globals, out *ui.UI) *cobra.Command {
 				Stage:   app.StageModeFor(all, tracked),
 				Force:   force,
 				Preview: dryRun,
-				NoInput: g.noInput,
 			}
 			return runCommit(cmd.Context(), g, out, req)
 		},
@@ -62,17 +62,13 @@ func commitMsgCmd(g *globals, out *ui.UI) *cobra.Command {
 			return runCommit(cmd.Context(), g, out, app.CommitRequest{
 				Stage:   app.StageStaged,
 				Preview: true,
-				NoInput: g.noInput,
 			})
 		},
 	}
 }
 
 func runCommit(ctx context.Context, g *globals, out *ui.UI, req app.CommitRequest) error {
-	if g.noInput {
-		out.SetInteractive(false)
-	}
-	a, err := build(ctx, g, app.SurfaceCLI, out)
+	a, err := build(ctx, g, prompterFor(g, out))
 	if err != nil {
 		return err
 	}

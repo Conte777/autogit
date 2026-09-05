@@ -146,9 +146,15 @@ _Avoid_: project config, local config
 
 **Surface**:
 The way a request reaches generation — the CLI, the MCP server, or the Claude
-Code hook. It decides whether the user can be asked anything. `install` and
-`doctor` are commands, not surfaces.
+Code hook. It picks the **prompter**, and nothing else about it is carried into
+`app`. `install` and `doctor` are commands, not surfaces.
 _Avoid_: entry point, frontend, interface
+
+**Prompter**:
+Who answers a question. A terminal on the CLI, and `ui.Noop` on mcp, on the
+hook and under `--no-input`. It is the single answer to "is there anybody to
+ask", and git is told the same thing, so the two cannot disagree.
+_Avoid_: interactive flag, no-input flag, tty
 
 **Operation**:
 Commit or Branch. There are two.

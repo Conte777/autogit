@@ -14,24 +14,15 @@ import (
 	"github.com/Conte777/autogit/internal/ui"
 )
 
-// Surface is where the request came from. It decides whether questions may be
-// asked at all, and whether `confirm` applies.
-type Surface string
-
-const (
-	SurfaceCLI  Surface = "cli"
-	SurfaceMCP  Surface = "mcp"
-	SurfaceHook Surface = "hook"
-)
-
 // App holds everything one operation needs.
 type App struct {
 	Repo     *git.Repo
 	Config   *config.Config
 	Preset   preset.Preset
 	Provider gen.Provider
-	Prompt   ui.Prompter
-	Surface  Surface
+	// Prompt is the one place that says whether there is anybody to ask.
+	// Required: a nil Prompt is a wiring bug, not a quiet no.
+	Prompt ui.Prompter
 	// PresetName selects the embedded prompt when the preset points at no file.
 	PresetName string
 }
@@ -51,11 +42,6 @@ func (e *ProtectedBranchError) Error() string {
 
 // ErrCanceled means the user said no.
 var ErrCanceled = errors.New("cancelled")
-
-// interactive reports whether this surface may ask the user anything.
-func (a *App) interactive() bool {
-	return a.Surface == SurfaceCLI && a.Prompt != nil && a.Prompt.Interactive()
-}
 
 func (a *App) generate(ctx context.Context, req gen.Request) (gen.Result, error) {
 	if timeout := a.Config.Timeout.Duration(); timeout > 0 {

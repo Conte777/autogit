@@ -12,7 +12,6 @@ import (
 	"github.com/Conte777/autogit/internal/gen"
 	"github.com/Conte777/autogit/internal/git"
 	"github.com/Conte777/autogit/internal/provider/mock"
-	"github.com/Conte777/autogit/internal/ui"
 )
 
 func TestCommitStagedOnly(t *testing.T) {
@@ -557,15 +556,13 @@ func TestScopeVocabularyNeedsEnoughHistory(t *testing.T) {
 	}
 }
 
-func TestConfirmIsIgnoredOnAgentSurfaces(t *testing.T) {
+func TestConfirmIsIgnoredWhereNobodyCanAnswer(t *testing.T) {
 	e := newEnv(t, "feat: add the file")
 	e.cfg.Confirm = true
 	e.write("a.txt", "one\n")
 	e.git("add", ".")
 
 	a := e.app()
-	a.Surface = app.SurfaceMCP
-	a.Prompt = ui.Noop{}
 
 	if _, err := a.Commit(context.Background(), app.CommitRequest{Stage: app.StageStaged}); err != nil {
 		t.Fatalf("confirm:true blocked the agent path: %v", err)

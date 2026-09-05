@@ -52,7 +52,7 @@ func presetEjectCmd(g *globals, out *ui.UI) *cobra.Command {
 			if _, ok := preset.Builtin(name); !ok {
 				return &usageError{fmt.Errorf("unknown preset %q; built in: %v", name, preset.Names())}
 			}
-			repo, err := openRepo(cmd.Context(), g.repo, "cli")
+			repo, err := openRepo(cmd.Context(), g.repo, prompterFor(g, out))
 			if err != nil {
 				return err
 			}
