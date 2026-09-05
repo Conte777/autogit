@@ -41,6 +41,12 @@ _Avoid_: issue, task id, story
 The optional area named in parentheses after the prefix.
 _Avoid_: area, module, component
 
+**Scope vocabulary**:
+The scope half of Rules once the repository is known: the list the prompt
+offers the model, and the list the checker enforces, which are the same list
+only under a whitelist. `off` has neither.
+_Avoid_: scope list, scope config
+
 **Subject**:
 The first line of a commit message.
 _Avoid_: title, headline, summary
@@ -158,6 +164,13 @@ _Avoid_: command, action, mode
 The mode of Commit that stops once the message exists, without creating a
 commit. Spelled `commit-msg` and `--dry-run` on the CLI, `dryRun` over MCP.
 _Avoid_: dry run, simulation
+
+**Summary**:
+What a result says on a surface — the line a surface prints, blocks a prompt
+with, or returns as tool content. A result renders its own; a surface only
+chooses where the text goes and which audience reads it. This is the one place
+the word is not the Subject or the Description it reports.
+_Avoid_: output, message, report
 
 ## Prepared message
 

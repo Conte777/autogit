@@ -48,7 +48,9 @@ Wait for both reports before touching the tree. Applying fixes while the other r
 
 Then fix in one pass: commit on the same branch, push, re-run the gates from step 2. A finding you disagree with gets a PR comment saying why, not silence.
 
-## 5. Merge and clean up
+## 5. Merge, clean up, close the ticket
+
+This step belongs to the task, not to the user. A green PR left unmerged, or a merged PR whose ticket is still open, is unfinished work — do not stop here to hand it over or to ask for permission. Ask only when a command is actually refused, and say which one.
 
 Merge once CI is green:
 
@@ -57,6 +59,6 @@ gh pr merge <n> --squash --delete-branch
 git worktree remove .claude/worktrees/<slug>
 ```
 
-Squash is what this repo's history uses — `feat: add post-install hook to remove gatekeeper quarantine (#1)`.
+Squash is what this repo's history uses — `feat: add post-install hook to remove gatekeeper quarantine (#1)`. `gh pr merge` fails its local cleanup when `main` is checked out in another worktree; the merge itself still happened, so confirm with `gh pr view <n> --json state` and finish the pruning by hand rather than retrying the merge.
 
-Only then resolve the ticket per the Resolve step in `issue-tracker.md`.
+Only then resolve the ticket per the Resolve step in `issue-tracker.md`: the answer comment first, then `gh issue close`. Both, in that order, every time — an auto-close from the PR body is what `Refs #<n>` exists to prevent.

@@ -592,3 +592,35 @@ func systemPromptOf(t *testing.T, p *mock.Provider) string {
 	}
 	return p.Systems[0]
 }
+
+func TestStageModeFor(t *testing.T) {
+	tests := []struct {
+		all, tracked bool
+		want         app.StageMode
+	}{
+		{want: app.StageStaged},
+		{all: true, want: app.StageAll},
+		{tracked: true, want: app.StageTracked},
+		{all: true, tracked: true, want: app.StageAll},
+	}
+	for _, tt := range tests {
+		if got := app.StageModeFor(tt.all, tt.tracked); got != tt.want {
+			t.Errorf("StageModeFor(%v, %v) = %q, want %q", tt.all, tt.tracked, got, tt.want)
+		}
+	}
+}
+
+func TestParseStageMode(t *testing.T) {
+	tests := map[string]app.StageMode{
+		"":         app.StageStaged,
+		"staged":   app.StageStaged,
+		"all":      app.StageAll,
+		"tracked":  app.StageTracked,
+		"nonsense": app.StageStaged,
+	}
+	for in, want := range tests {
+		if got := app.ParseStageMode(in); got != want {
+			t.Errorf("ParseStageMode(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

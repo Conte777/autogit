@@ -39,17 +39,17 @@ func TestParseBothGrammars(t *testing.T) {
 		{prompt: "/commit-msg", want: hook.Command{Kind: hook.KindCommitMsg}, ok: true},
 		{
 			prompt: "/branch CUS-1234 add user auth",
-			want:   hook.Command{Kind: hook.KindBranch, Ticket: "CUS-1234", Description: "add user auth"},
+			want:   hook.Command{Kind: hook.KindBranch, Args: []string{"CUS-1234", "add", "user", "auth"}},
 			ok:     true,
 		},
 		{
 			prompt: "/branch add user auth",
-			want:   hook.Command{Kind: hook.KindBranch, Description: "add user auth"},
+			want:   hook.Command{Kind: hook.KindBranch, Args: []string{"add", "user", "auth"}},
 			ok:     true,
 		},
 		{
 			prompt: "/branch cus-9",
-			want:   hook.Command{Kind: hook.KindBranch, Ticket: "CUS-9"},
+			want:   hook.Command{Kind: hook.KindBranch, Args: []string{"cus-9"}},
 			ok:     true,
 		},
 		{prompt: "/commitment issues"},
