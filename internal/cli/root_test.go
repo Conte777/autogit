@@ -37,53 +37,26 @@ func TestNoInputReachesGit(t *testing.T) {
 	}
 }
 
-// The exit codes are a contract, and cobra's own answer to a misspelled command
-// is a plain error, which would report a bug in autogit instead of a typo.
-func TestUnknownCommandIsAUsageError(t *testing.T) {
-	for _, name := range []string{"install", "uninstall", "commt"} {
-		t.Run(name, func(t *testing.T) {
-			err := runRoot(t, name)
-			if err == nil {
-				t.Fatalf("autogit %s was accepted", name)
-			}
-			if got := ExitCode(err); got != ExitUsage {
-				t.Errorf("ExitCode() = %d, want %d (%v)", got, ExitUsage, err)
-			}
-		})
-	}
-
-	t.Run("suggests the command that was meant", func(t *testing.T) {
-		err := runRoot(t, "commt")
-		if err == nil || !strings.Contains(err.Error(), "Did you mean this?\n\tcommit") {
-			t.Errorf("no suggestion for a near miss: %v", err)
-		}
-	})
-
-	// RunE only exists so that cobra reaches Args at all: it stops at the first
-	// command that is not runnable. Take it away and the bare invocation is the
-	// only thing that notices.
-	t.Run("the bare command still helps", func(t *testing.T) {
-		if err := runRoot(t); err != nil {
-			t.Errorf("autogit with no arguments failed: %v", err)
-		}
-	})
-}
-
-// Every node of the tree answers a bad invocation the same way: exit 2. Below
-// the root, cobra's own answers were a plain error — exit 1, which the ADR
-// reads as a bug in autogit — or, under a parent command that cannot run, no
-// error at all.
-func TestBadInvocationBelowTheRootIsAUsageError(t *testing.T) {
+// The exit codes are a contract, and cobra's own answer to a bad invocation is
+// a plain error — exit 1, which reports a bug in autogit instead of a typo —
+// or, under a command it cannot run, no error at all.
+func TestBadInvocationIsAUsageError(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		args []string
 	}{
-		{"bad flag on the root", []string{"--bogus"}},
-		{"bad flag on a subcommand", []string{"schema", "--bogus"}},
-		{"bad flag on a leaf command", []string{"preset", "list", "--bogus"}},
-		{"missing argument", []string{"preset", "eject"}},
-		{"surplus argument", []string{"schema", "extra"}},
-		{"unknown word after a parent command", []string{"preset", "bogus"}},
+		{"a command that no longer exists", []string{"install"}},
+		{"a misspelled command", []string{"commt"}},
+		{"a bad flag on the root", []string{"--bogus"}},
+		{"a bad flag on a subcommand", []string{"schema", "--bogus"}},
+		{"a bad flag on a leaf command", []string{"preset", "list", "--bogus"}},
+		{"a missing argument", []string{"preset", "eject"}},
+		{"a surplus argument", []string{"schema", "extra"}},
+		{"an unknown word after a parent command", []string{"preset", "bogus"}},
+		// cobra builds these two on its way into Execute, after the tree is
+		// handed over.
+		{"an unknown word after cobra's own parent command", []string{"completion", "bogus"}},
+		{"a surplus argument under cobra's own command", []string{"completion", "bash", "extra"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			err := runRoot(t, tc.args...)
@@ -96,18 +69,32 @@ func TestBadInvocationBelowTheRootIsAUsageError(t *testing.T) {
 		})
 	}
 
-	t.Run("a parent command still helps", func(t *testing.T) {
-		if err := runRoot(t, "preset"); err != nil {
-			t.Errorf("autogit preset failed: %v", err)
-		}
-	})
+	for _, tc := range []struct {
+		name  string
+		args  []string
+		meant string
+	}{
+		{"the command that was meant", []string{"commt"}, "commit"},
+		{"the subcommand that was meant", []string{"preset", "lst"}, "list"},
+	} {
+		t.Run("suggests "+tc.name, func(t *testing.T) {
+			err := runRoot(t, tc.args...)
+			if err == nil || !strings.Contains(err.Error(), "Did you mean this?\n\t"+tc.meant) {
+				t.Errorf("no suggestion for a near miss: %v", err)
+			}
+		})
+	}
 
-	t.Run("suggests the subcommand that was meant", func(t *testing.T) {
-		err := runRoot(t, "preset", "lst")
-		if err == nil || !strings.Contains(err.Error(), "Did you mean this?\n\tlist") {
-			t.Errorf("no suggestion for a near miss below the root: %v", err)
-		}
-	})
+	// RunE only exists so that cobra reaches Args at all: it stops at the first
+	// command that is not runnable. Take it away and these two are the only
+	// things that notice.
+	for _, args := range [][]string{{}, {"preset"}} {
+		t.Run("a parent command still helps: "+strings.Join(args, " "), func(t *testing.T) {
+			if err := runRoot(t, args...); err != nil {
+				t.Errorf("autogit %s failed: %v", strings.Join(args, " "), err)
+			}
+		})
+	}
 }
 
 func runRoot(t *testing.T, args ...string) error {

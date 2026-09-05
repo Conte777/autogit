@@ -69,39 +69,42 @@ func Root(v Version) *cobra.Command {
 		hookCmd(g),
 		mcpCmd(g),
 	)
-	usageErrors(root)
+	// Cobra grows `help` and `completion` on its way into Execute, which is
+	// after the walk below; `completion` is a parent command of exactly the
+	// shape the walk exists to fix.
+	root.InitDefaultHelpCmd()
+	root.InitDefaultCompletionCmd()
+
+	classifyUsageErrors(root)
 	return root
 }
 
-// usageErrors makes every node of the tree answer a bad invocation with exit 2.
-// Cobra's own answer is a plain error — a bug in autogit, by the exit codes —
-// and under a command it cannot run, no error at all: RunE is what carries a
-// mistyped subcommand as far as Args.
-func usageErrors(cmd *cobra.Command) {
+// classifyUsageErrors makes every node of the tree answer a bad invocation with
+// exit 2. Cobra's own answer is a plain error — a bug in autogit, by the exit
+// codes — and under a command it cannot run, no error at all: RunE is what
+// carries a mistyped subcommand as far as Args.
+func classifyUsageErrors(cmd *cobra.Command) {
 	if cmd.HasSubCommands() {
+		// SuggestionsFor reads the distance raw; only cobra's own path fills
+		// the zero value in.
 		cmd.SuggestionsMinimumDistance = 2
-		if cmd.Args == nil {
-			cmd.Args = unknownCommandIsUsage
-		}
 		if !cmd.Runnable() {
 			cmd.RunE = func(c *cobra.Command, _ []string) error { return c.Help() }
 		}
 	}
-	if args := cmd.Args; args != nil {
+	switch args := cmd.Args; {
+	case args != nil:
 		cmd.Args = func(c *cobra.Command, a []string) error {
-			err := args(c, a)
-			if err == nil {
-				return nil
+			if err := args(c, a); err != nil {
+				return &usageError{err}
 			}
-			var usage *usageError
-			if errors.As(err, &usage) {
-				return err
-			}
-			return &usageError{err}
+			return nil
 		}
+	case cmd.HasSubCommands():
+		cmd.Args = unknownCommandIsUsage
 	}
 	for _, sub := range cmd.Commands() {
-		usageErrors(sub)
+		classifyUsageErrors(sub)
 	}
 }
 
