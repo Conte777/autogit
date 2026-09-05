@@ -20,7 +20,7 @@ func hookCmd(g *globals) *cobra.Command {
 		Args:   cobra.NoArgs,
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return hook.Run(cmd.Context(), os.Stdin, os.Stdout, os.LookupEnv,
+			return hook.Run(cmd.Context(), os.Stdin, os.Stdout, g.env,
 				func(ctx context.Context, c hook.Command) (string, error) {
 					return runHookCommand(ctx, g, c)
 				})
@@ -38,7 +38,7 @@ func runHookCommand(ctx context.Context, g *globals, c hook.Command) (string, er
 
 	switch c.Kind {
 	case hook.KindBranch:
-		result, err := a.Branch(ctx, app.ParseBranchArgs(c.Args, a.Preset.Branch))
+		result, err := a.Branch(ctx, a.ParseBranchArgs(c.Args))
 		if err != nil {
 			return "", err
 		}

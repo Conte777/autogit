@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/Conte777/autogit/internal/app"
-	"github.com/Conte777/autogit/internal/preset"
 )
 
 func currentBranch(t *testing.T, e *env) string {
@@ -164,9 +163,9 @@ func TestBranchCustomNameTemplate(t *testing.T) {
 	e := newEnv(t)
 	e.commitFile("a.txt", "one\n", "init")
 
-	a := e.app()
-	a.Preset.Branch.Name = "{{.Ticket}}-{{.Slug}}"
-	got, err := a.Branch(context.Background(), app.BranchRequest{
+	e.repoConfig(`{"presets": {"conventional": {"branch": {"name": "{{.Ticket}}-{{.Slug}}"}}}}`)
+
+	got, err := e.app().Branch(context.Background(), app.BranchRequest{
 		Ticket:      "CUS-9",
 		Description: "add user auth",
 	})
@@ -178,78 +177,76 @@ func TestBranchCustomNameTemplate(t *testing.T) {
 	}
 }
 
-func branchFormat(t *testing.T, name string) preset.BranchFormat {
-	t.Helper()
-	p, ok := preset.Builtin(name)
-	if !ok {
-		t.Fatalf("no builtin preset %q", name)
-	}
-	return p.Branch
-}
-
 func TestParseBranchArgs(t *testing.T) {
-	conventional := branchFormat(t, "conventional")
-	ticket := branchFormat(t, "ticket")
+	conventional := newEnv(t).app()
+
+	tk := newEnv(t)
+	tk.cfg.Preset = "ticket"
+	ticket := tk.app()
+
+	np := newEnv(t)
+	np.repoConfig(`{"presets": {"conventional": {"branch": {"ticketPattern": ""}}}}`)
+	patternless := np.app()
 
 	tests := []struct {
-		name   string
-		args   []string
-		format preset.BranchFormat
-		want   app.BranchRequest
+		name string
+		args []string
+		a    *app.App
+		want app.BranchRequest
 	}{
 		{
-			name:   "description shaped like a ticket stays a description",
-			args:   []string{"a-1", "fix", "login"},
-			format: conventional,
-			want:   app.BranchRequest{Description: "a-1 fix login"},
+			name: "description shaped like a ticket stays a description",
+			args: []string{"a-1", "fix", "login"},
+			a:    conventional,
+			want: app.BranchRequest{Description: "a-1 fix login"},
 		},
 		{
-			name:   "ticket matching the preset becomes the prefix",
-			args:   []string{"AG-12", "fix", "login"},
-			format: conventional,
-			want:   app.BranchRequest{Ticket: "AG-12", Description: "fix login"},
+			name: "ticket matching the preset becomes the prefix",
+			args: []string{"AG-12", "fix", "login"},
+			a:    conventional,
+			want: app.BranchRequest{Ticket: "AG-12", Description: "fix login"},
 		},
 		{
-			name:   "a lowercase ticket is uppercased",
-			args:   []string{"cus-9"},
-			format: ticket,
-			want:   app.BranchRequest{Ticket: "CUS-9"},
+			name: "a lowercase ticket is uppercased",
+			args: []string{"cus-9"},
+			a:    ticket,
+			want: app.BranchRequest{Ticket: "CUS-9"},
 		},
 		{
-			name:   "a ticket from another preset is description text",
-			args:   []string{"AG-12", "fix", "login"},
-			format: ticket,
-			want:   app.BranchRequest{Description: "AG-12 fix login"},
+			name: "a ticket from another preset is description text",
+			args: []string{"AG-12", "fix", "login"},
+			a:    ticket,
+			want: app.BranchRequest{Description: "AG-12 fix login"},
 		},
 		{
-			name:   "a preset without a pattern guesses no ticket at all",
-			args:   []string{"AG-12", "fix", "login"},
-			format: preset.BranchFormat{},
-			want:   app.BranchRequest{Description: "AG-12 fix login"},
+			name: "a preset without a pattern guesses no ticket at all",
+			args: []string{"AG-12", "fix", "login"},
+			a:    patternless,
+			want: app.BranchRequest{Description: "AG-12 fix login"},
 		},
 		{
-			name:   "an empty leading argument is not a ticket",
-			args:   []string{"", "CUS-9", "fix"},
-			format: ticket,
-			want:   app.BranchRequest{Description: " CUS-9 fix"},
+			name: "an empty leading argument is not a ticket",
+			args: []string{"", "CUS-9", "fix"},
+			a:    ticket,
+			want: app.BranchRequest{Description: " CUS-9 fix"},
 		},
 		{
-			name:   "a ticket in only part of the word is a description",
-			args:   []string{"AG-12-and-more", "fix"},
-			format: conventional,
-			want:   app.BranchRequest{Description: "AG-12-and-more fix"},
+			name: "a ticket in only part of the word is a description",
+			args: []string{"AG-12-and-more", "fix"},
+			a:    conventional,
+			want: app.BranchRequest{Description: "AG-12-and-more fix"},
 		},
 		{
-			name:   "no args at all",
-			args:   nil,
-			format: conventional,
-			want:   app.BranchRequest{},
+			name: "no args at all",
+			args: nil,
+			a:    conventional,
+			want: app.BranchRequest{},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := app.ParseBranchArgs(tt.args, tt.format)
+			got := tt.a.ParseBranchArgs(tt.args)
 			if got != tt.want {
 				t.Errorf("ParseBranchArgs(%q) = %+v, want %+v", tt.args, got, tt.want)
 			}

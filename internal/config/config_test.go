@@ -271,6 +271,87 @@ func TestUnknownKeyInsidePresetOverride(t *testing.T) {
 	}
 }
 
+// The preset name selects a file inside the embedded prompt assets, so an
+// untrusted repository config must not be able to spell it.
+func TestPresetNameIsNotAConfigKey(t *testing.T) {
+	repo := t.TempDir()
+	writeFile(t, repo, ".autogit.json", `{"presets":{"conventional":{"name":"../../etc"}}}`)
+
+	cfg, err := config.Load(config.Options{RepoRoot: repo, Env: envOf(nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := cfg.ResolvePreset()
+	if err == nil {
+		t.Fatalf("a preset override named itself %q", p.Name())
+	}
+	if !strings.Contains(err.Error(), `"name"`) {
+		t.Errorf("err = %v, want it to reject `name` as an unknown key", err)
+	}
+}
+
+func TestResolvedPresetKnowsItsName(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "commit.md", "## System\ns\n\n## User\nu")
+	writeFile(t, dir, "branch.md", "## System\ns\n\n## User\nu")
+	global := writeFile(t, dir, "config.json", `{"preset":"house","presets":{"house":{`+
+		`"commit":{"prompt":"commit.md","body":{"mode":"off"},"scope":{"mode":"off"}},`+
+		`"branch":{"prompt":"branch.md"}}}}`)
+
+	cfg, err := config.Load(config.Options{GlobalPath: global, Env: envOf(nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := cfg.ResolvePreset()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Name() != "house" {
+		t.Errorf("Name() = %q, want the preset the layer defined", p.Name())
+	}
+}
+
+// A `~` in a prompt path belongs to the environment Load was given, not to the
+// one the process happens to run under.
+func TestPromptPathExpandsAgainstTheGivenHome(t *testing.T) {
+	home := t.TempDir()
+	dir := t.TempDir()
+	global := writeFile(t, dir, "config.json",
+		`{"presets":{"conventional":{"commit":{"prompt":"~/prompts/commit.md"}}}}`)
+	t.Setenv("HOME", "/not/this/one")
+
+	cfg, err := config.Load(config.Options{
+		GlobalPath: global,
+		Env:        envOf(map[string]string{"HOME": home}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := cfg.ResolvePreset()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(home, "prompts/commit.md"); p.Commit.Prompt != want {
+		t.Errorf("commit prompt = %q, want %q", p.Commit.Prompt, want)
+	}
+}
+
+// A preset with neither a prompt file nor an embedded one of its own name has
+// nothing to send. It has to fail here, not once the model is being asked.
+func TestPresetWithNoPromptToSendIsRejected(t *testing.T) {
+	dir := t.TempDir()
+	global := writeFile(t, dir, "config.json",
+		`{"preset":"house","presets":{"house":{"commit":{"body":{"mode":"off"},"scope":{"mode":"off"}}}}}`)
+
+	cfg, err := config.Load(config.Options{GlobalPath: global, Env: envOf(nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cfg.ResolvePreset(); err == nil {
+		t.Fatal("ResolvePreset accepted a preset with no prompt at all")
+	}
+}
+
 func TestBadEnvValues(t *testing.T) {
 	for _, kv := range []map[string]string{
 		{"AUTOGIT_ATTEMPTS": "zero"},

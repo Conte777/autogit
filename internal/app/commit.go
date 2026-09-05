@@ -77,7 +77,7 @@ type CommitResult struct {
 // The invariant on every error path: nothing is committed, and the index is
 // touched only where the caller explicitly asked for it via Stage.
 func (a *App) Commit(ctx context.Context, req CommitRequest) (CommitResult, error) {
-	st, err := a.Repo.State(ctx)
+	st, err := a.repo.State(ctx)
 	if err != nil {
 		return CommitResult{}, err
 	}
@@ -88,7 +88,7 @@ func (a *App) Commit(ctx context.Context, req CommitRequest) (CommitResult, erro
 		}
 	}
 
-	branch, err := a.Repo.Current(ctx)
+	branch, err := a.repo.Current(ctx)
 	if err != nil {
 		return CommitResult{}, err
 	}
@@ -118,7 +118,7 @@ func (a *App) Commit(ctx context.Context, req CommitRequest) (CommitResult, erro
 		out.Message = prepared
 	}
 	if op != git.OpMerge {
-		diff, diffErr := a.Repo.StagedDiff(ctx, a.diffOptions())
+		diff, diffErr := a.repo.StagedDiff(ctx, a.diffOptions())
 		if diffErr != nil {
 			return CommitResult{}, diffErr
 		}
@@ -141,7 +141,7 @@ func (a *App) Commit(ctx context.Context, req CommitRequest) (CommitResult, erro
 		return CommitResult{}, confirmErr
 	}
 
-	landed, err := a.Repo.Commit(ctx, out.Message)
+	landed, err := a.repo.Commit(ctx, out.Message)
 	if err != nil {
 		return CommitResult{}, err
 	}
@@ -155,10 +155,10 @@ func (a *App) Commit(ctx context.Context, req CommitRequest) (CommitResult, erro
 // counts as absent, so the caller falls back on the refusal that shipped
 // before passthrough rather than inventing a new one.
 func (a *App) preparedMessage(ctx context.Context, st git.State) (string, git.Operation) {
-	if !a.Config.PreparedMessage || !st.HasPreparedMessage() {
+	if !a.cfg.PreparedMessage || !st.HasPreparedMessage() {
 		return "", git.OpNone
 	}
-	msg, err := a.Repo.PreparedMessage(ctx, st.Op)
+	msg, err := a.repo.PreparedMessage(ctx, st.Op)
 	if err != nil || msg == "" {
 		return "", git.OpNone
 	}
@@ -168,7 +168,7 @@ func (a *App) preparedMessage(ctx context.Context, st git.State) (string, git.Op
 // requireResolved refuses to commit while conflicts are open. It runs before
 // staging on purpose: `--all` would otherwise commit the markers.
 func (a *App) requireResolved(ctx context.Context) error {
-	unmerged, err := a.Repo.Unmerged(ctx)
+	unmerged, err := a.repo.Unmerged(ctx)
 	if err != nil {
 		return err
 	}
@@ -180,11 +180,11 @@ func (a *App) requireResolved(ctx context.Context) error {
 }
 
 func (a *App) checkProtected(branch git.Branch, req CommitRequest) error {
-	if branch.Detached || req.Force || !validate.IsProtected(branch.Name, a.Config.ProtectedBranches) {
+	if branch.Detached || req.Force || !validate.IsProtected(branch.Name, a.cfg.ProtectedBranches) {
 		return nil
 	}
-	if a.Prompt.Interactive() {
-		ok, err := a.Prompt.Confirm(
+	if a.prompt.Interactive() {
+		ok, err := a.prompt.Confirm(
 			fmt.Sprintf("Branch %q is protected. Commit anyway?", branch.Name), false)
 		if err != nil {
 			return err
@@ -206,11 +206,11 @@ func (a *App) checkProtected(branch git.Branch, req CommitRequest) error {
 func (a *App) stage(ctx context.Context, req CommitRequest, allowEmpty bool) error {
 	switch req.Stage {
 	case StageAll:
-		if err := a.Repo.StageAll(ctx); err != nil {
+		if err := a.repo.StageAll(ctx); err != nil {
 			return err
 		}
 	case StageTracked:
-		if err := a.Repo.StageTracked(ctx); err != nil {
+		if err := a.repo.StageTracked(ctx); err != nil {
 			return err
 		}
 	}
@@ -220,7 +220,7 @@ func (a *App) stage(ctx context.Context, req CommitRequest, allowEmpty bool) err
 
 	// Re-checked here rather than only on entry: an MCP request can be replayed
 	// after a partial `git add`, and a second commit must not fall out of that.
-	staged, err := a.Repo.HasStaged(ctx)
+	staged, err := a.repo.HasStaged(ctx)
 	if err != nil {
 		return err
 	}
@@ -228,7 +228,7 @@ func (a *App) stage(ctx context.Context, req CommitRequest, allowEmpty bool) err
 		return nil
 	}
 
-	status, err := a.Repo.Status(ctx)
+	status, err := a.repo.Status(ctx)
 	if err != nil {
 		return err
 	}
@@ -236,13 +236,13 @@ func (a *App) stage(ctx context.Context, req CommitRequest, allowEmpty bool) err
 		return ErrNothingToCommit
 	}
 
-	if !a.Prompt.Interactive() {
+	if !a.prompt.Interactive() {
 		return fmt.Errorf("%w: the working tree has changes but the index is empty; "+
 			"stage them yourself, or pass --all (everything) or --tracked (tracked files only)",
 			ErrNothingToCommit)
 	}
 
-	choice, err := a.Prompt.Choose("Nothing is staged, but the working tree is dirty. What should I commit?",
+	choice, err := a.prompt.Choose("Nothing is staged, but the working tree is dirty. What should I commit?",
 		[]ui.Option{
 			{Key: "a", Label: "everything, including untracked files (git add -A)"},
 			{Key: "t", Label: "tracked files only (git add -u)"},
@@ -253,9 +253,9 @@ func (a *App) stage(ctx context.Context, req CommitRequest, allowEmpty bool) err
 	}
 	switch choice {
 	case "a":
-		err = a.Repo.StageAll(ctx)
+		err = a.repo.StageAll(ctx)
 	case "t":
-		err = a.Repo.StageTracked(ctx)
+		err = a.repo.StageTracked(ctx)
 	default:
 		return ErrCanceled
 	}
@@ -263,7 +263,7 @@ func (a *App) stage(ctx context.Context, req CommitRequest, allowEmpty bool) err
 		return err
 	}
 
-	staged, err = a.Repo.HasStaged(ctx)
+	staged, err = a.repo.HasStaged(ctx)
 	if err != nil {
 		return err
 	}
@@ -276,10 +276,10 @@ func (a *App) stage(ctx context.Context, req CommitRequest, allowEmpty bool) err
 func (a *App) confirmCommit(message string) error {
 	// `confirm` is a terminal courtesy. Honouring it where nobody can answer
 	// would let a global `confirm: true` deadlock the agent path.
-	if !a.Config.Confirm || !a.Prompt.Interactive() {
+	if !a.cfg.Confirm || !a.prompt.Interactive() {
 		return nil
 	}
-	ok, err := a.Prompt.Confirm("Commit this message?\n\n"+indent(message)+"\n", true)
+	ok, err := a.prompt.Confirm("Commit this message?\n\n"+indent(message)+"\n", true)
 	if err != nil {
 		return err
 	}
@@ -300,7 +300,7 @@ func indent(s string) string {
 }
 
 func (a *App) generateMessage(ctx context.Context, branch git.Branch, diff git.Diff) (gen.Result, error) {
-	format := a.Preset.Commit
+	format := a.preset.Commit
 
 	var ticket, branchSlug string
 	if !branch.Detached {
@@ -328,7 +328,7 @@ func (a *App) generateMessage(ctx context.Context, branch git.Branch, diff git.D
 		AllowFooters:  format.Footers,
 	}
 
-	tmpl, err := a.Preset.CommitPrompt(a.PresetName)
+	tmpl, err := a.preset.CommitPrompt()
 	if err != nil {
 		return gen.Result{}, err
 	}
@@ -347,14 +347,14 @@ func (a *App) generateMessage(ctx context.Context, branch git.Branch, diff git.D
 // project's own vocabulary out of history when the policy asks for it. Nothing
 // is mined when the history is too thin to be a good example.
 func (a *App) scopeVocabulary(ctx context.Context) (preset.ScopeVocabulary, error) {
-	policy := a.Preset.Commit.Scope
+	policy := a.preset.Commit.Scope
 	var mined []string
 	if policy.NeedsHistory() {
 		depth := policy.HistoryDepth
 		if depth <= 0 {
 			depth = 500
 		}
-		subjects, err := a.Repo.Subjects(ctx, depth)
+		subjects, err := a.repo.Subjects(ctx, depth)
 		if err != nil {
 			return preset.ScopeVocabulary{}, err
 		}
@@ -377,7 +377,7 @@ func countChangedLines(diffText string) int {
 }
 
 func (a *App) diffOptions() git.DiffOptions {
-	d := a.Config.Diff
+	d := a.cfg.Diff
 	return git.DiffOptions{
 		MaxBytes:         d.MaxBytes,
 		Context:          d.Context,

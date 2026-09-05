@@ -20,12 +20,15 @@ func TestBuiltinPromptsCompileAndRender(t *testing.T) {
 			if err := p.Validate(); err != nil {
 				t.Fatalf("Validate() = %v", err)
 			}
+			if p.Name() != name {
+				t.Fatalf("Name() = %q, want %q", p.Name(), name)
+			}
 
-			commit, err := p.CommitPrompt(name)
+			commit, err := p.CommitPrompt()
 			if err != nil {
 				t.Fatal(err)
 			}
-			branch, err := p.BranchPrompt(name)
+			branch, err := p.BranchPrompt()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -98,7 +101,7 @@ func branchCases(p preset.Preset) []prompt.BranchData {
 
 func TestTicketPromptMentionsTheTicketAsPrefix(t *testing.T) {
 	p, _ := preset.Builtin("ticket")
-	commit, err := p.CommitPrompt("ticket")
+	commit, err := p.CommitPrompt()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +125,7 @@ func TestTicketPromptMentionsTheTicketAsPrefix(t *testing.T) {
 
 func TestConventionalPromptDropsRefsWithoutTicket(t *testing.T) {
 	p, _ := preset.Builtin("conventional")
-	commit, _ := p.CommitPrompt("conventional")
+	commit, _ := p.CommitPrompt()
 
 	system, _, err := commit.Render(prompt.CommitData{AllowFooters: true, ScopeMode: validate.ScopeSuggest})
 	if err != nil {

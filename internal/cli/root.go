@@ -14,7 +14,9 @@ import (
 	"github.com/Conte777/autogit/internal/ui"
 )
 
-// globals are the flags every operation shares.
+// globals are the flags every operation shares, plus the environment they are
+// read against — the seam that lets a test run `build` without handing it the
+// process's own variables.
 type globals struct {
 	repo     string
 	provider string
@@ -24,12 +26,13 @@ type globals struct {
 	timeout  time.Duration
 	confPath string
 	noInput  bool
+	env      func(string) (string, bool)
 }
 
 // Root builds the whole command tree. v is stamped in at build time.
 func Root(v Version) *cobra.Command {
 	version = v.Version
-	g := &globals{}
+	g := &globals{env: os.LookupEnv}
 	out := ui.Std()
 
 	root := &cobra.Command{
@@ -92,29 +95,22 @@ func build(ctx context.Context, g *globals, prompter ui.Prompter) (*app.App, err
 		return nil, err
 	}
 
-	cfg, err := config.Load(config.Options{RepoRoot: repo.Root(), GlobalPath: g.confPath})
+	cfg, err := config.Load(config.Options{
+		RepoRoot:   repo.Root(),
+		GlobalPath: g.confPath,
+		Env:        g.env,
+	})
 	if err != nil {
 		return nil, err
 	}
 	applyFlags(cfg, g)
 
-	p, err := cfg.ResolvePreset()
-	if err != nil {
-		return nil, err
-	}
-	prov, err := provider.Build(cfg, os.LookupEnv, nil)
+	prov, err := provider.Build(cfg, g.env, nil)
 	if err != nil {
 		return nil, &config.Error{Err: err}
 	}
 
-	return &app.App{
-		Repo:       repo,
-		Config:     cfg,
-		Preset:     p,
-		PresetName: cfg.Preset,
-		Provider:   prov,
-		Prompt:     prompter,
-	}, nil
+	return app.New(repo, cfg, prov, prompter)
 }
 
 // prompterFor picks who answers a question on the CLI. `--no-input` hands back

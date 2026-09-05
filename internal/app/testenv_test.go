@@ -43,27 +43,34 @@ func newEnv(t *testing.T, replies ...string) *env {
 
 // app builds an App with nobody to ask, which is how every non-interactive
 // test wants it.
-func (e *env) app() *app.App {
-	e.t.Helper()
-	p, err := e.cfg.ResolvePreset()
-	if err != nil {
-		e.t.Fatal(err)
-	}
-	return &app.App{
-		Repo:       e.repo,
-		Config:     e.cfg,
-		Preset:     p,
-		PresetName: e.cfg.Preset,
-		Provider:   e.prov,
-		Prompt:     ui.Noop{},
-	}
-}
+func (e *env) app() *app.App { return e.answering(ui.Noop{}) }
 
 // answering builds an App whose questions are answered by a scripted prompter.
 func (e *env) answering(p ui.Prompter) *app.App {
-	a := e.app()
-	a.Prompt = p
+	e.t.Helper()
+	a, err := app.New(e.repo, e.cfg, e.prov, p)
+	if err != nil {
+		e.t.Fatal(err)
+	}
 	return a
+}
+
+// repoConfig writes a .autogit.json and reloads the configuration through it,
+// the way a real run reaches a preset override. Branch protection stays off,
+// as it is in newEnv.
+func (e *env) repoConfig(doc string) {
+	e.t.Helper()
+	e.write(config.FileName, doc)
+	cfg, err := config.Load(config.Options{
+		RepoRoot:   e.dir,
+		GlobalPath: filepath.Join(e.dir, "no-global-config.json"),
+		Env:        func(string) (string, bool) { return "", false },
+	})
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	cfg.ProtectedBranches = nil
+	e.cfg = cfg
 }
 
 func (e *env) write(name, content string) {

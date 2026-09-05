@@ -113,14 +113,7 @@ func builder(t *testing.T, prov *mock.Provider, tweak func(*config.Config)) mcps
 		if tweak != nil {
 			tweak(&cfg)
 		}
-		p, err := cfg.ResolvePreset()
-		if err != nil {
-			return nil, err
-		}
-		return &app.App{
-			Repo: r, Config: &cfg, Preset: p, PresetName: cfg.Preset,
-			Provider: prov, Prompt: ui.Noop{},
-		}, nil
+		return app.New(r, &cfg, prov, ui.Noop{})
 	}
 }
 
