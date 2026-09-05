@@ -115,7 +115,7 @@ func checkProvider(ctx context.Context, cfg *config.Config, out *ui.UI) error {
 	if err != nil {
 		out.Print("liveness     UNAVAILABLE: %v", err)
 		out.Print("             %s", switchHint(cfg.Provider))
-		return &configProviderError{err}
+		return &config.Error{Err: err}
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)

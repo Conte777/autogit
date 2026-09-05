@@ -93,13 +93,13 @@ Set `"preparedMessage": false` to generate a message in these states instead.
 | 0 | success, including `--dry-run` |
 | 1 | internal error |
 | 2 | usage error |
-| 3 | not a git repository, a state that blocks committing, or unresolved conflicts |
+| 3 | not a git repository, a state that blocks committing, unresolved conflicts, or a git command that failed or timed out |
 | 4 | nothing to commit |
 | 5 | protected branch without `--force` |
 | 6 | provider failure (missing binary, 401, timeout, network) |
 | 7 | validation failed after every attempt |
 | 8 | configuration error |
-| 130 | cancelled |
+| 130 | cancelled, including Ctrl-C during a git or provider call |
 
 ## Configure
 
