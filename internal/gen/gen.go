@@ -109,12 +109,12 @@ func Generate(ctx context.Context, p Provider, r Request) (Result, error) {
 
 	for attempt := 1; attempt <= r.Attempts; attempt++ {
 		if err := ctx.Err(); err != nil {
-			return Result{}, err
+			return Result{}, &ProviderError{Provider: p.Name(), Op: "send", Err: err}
 		}
 		raw, err := session.Send(ctx, turn)
 		if err != nil {
-			if ctx.Err() != nil {
-				return Result{}, ctx.Err()
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				err = ctxErr
 			}
 			return Result{}, &ProviderError{Provider: p.Name(), Op: "send", Err: err}
 		}

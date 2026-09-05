@@ -104,7 +104,7 @@ func build(ctx context.Context, g *globals, prompter ui.Prompter) (*app.App, err
 	}
 	prov, err := provider.Build(cfg, os.LookupEnv, nil)
 	if err != nil {
-		return nil, &configProviderError{err}
+		return nil, &config.Error{Err: err}
 	}
 
 	return &app.App{
@@ -145,10 +145,3 @@ func applyFlags(cfg *config.Config, g *globals) {
 		cfg.SetModel(g.model)
 	}
 }
-
-// configProviderError makes an unbuildable provider a config problem (exit 8),
-// not a transport failure: nothing was ever sent.
-type configProviderError struct{ err error }
-
-func (e *configProviderError) Error() string { return e.err.Error() }
-func (e *configProviderError) Unwrap() error { return e.err }
