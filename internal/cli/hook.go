@@ -20,7 +20,7 @@ func hookCmd(g *globals) *cobra.Command {
 		Args:   cobra.NoArgs,
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return hook.Run(cmd.Context(), os.Stdin, os.Stdout, os.LookupEnv,
+			return hook.Run(cmd.Context(), os.Stdin, os.Stdout, g.env,
 				func(ctx context.Context, c hook.Command) (string, error) {
 					return runHookCommand(ctx, g, c)
 				})

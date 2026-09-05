@@ -29,19 +29,10 @@ type globals struct {
 	env      func(string) (string, bool)
 }
 
-// lookupEnv is the environment this run reads. A zero globals falls back to the
-// process, so a command that never set one still behaves.
-func (g *globals) lookupEnv(key string) (string, bool) {
-	if g.env == nil {
-		return os.LookupEnv(key)
-	}
-	return g.env(key)
-}
-
 // Root builds the whole command tree. v is stamped in at build time.
 func Root(v Version) *cobra.Command {
 	version = v.Version
-	g := &globals{}
+	g := &globals{env: os.LookupEnv}
 	out := ui.Std()
 
 	root := &cobra.Command{
@@ -107,14 +98,14 @@ func build(ctx context.Context, g *globals, prompter ui.Prompter) (*app.App, err
 	cfg, err := config.Load(config.Options{
 		RepoRoot:   repo.Root(),
 		GlobalPath: g.confPath,
-		Env:        g.lookupEnv,
+		Env:        g.env,
 	})
 	if err != nil {
 		return nil, err
 	}
 	applyFlags(cfg, g)
 
-	prov, err := provider.Build(cfg, g.lookupEnv, nil)
+	prov, err := provider.Build(cfg, g.env, nil)
 	if err != nil {
 		return nil, &configProviderError{err}
 	}

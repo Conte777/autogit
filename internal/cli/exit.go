@@ -42,6 +42,7 @@ func ExitCode(err error) int {
 		usage    *usageError
 		state    *git.StateError
 		cfgErr   *config.Error
+		provCfg  *configProviderError
 		protErr  *app.ProtectedBranchError
 		provErr  *gen.ProviderError
 		failErr  *gen.FailureError
@@ -52,7 +53,7 @@ func ExitCode(err error) int {
 	switch {
 	case errors.As(err, &usage):
 		return ExitUsage
-	case errors.As(err, &cfgErr):
+	case errors.As(err, &cfgErr), errors.As(err, &provCfg):
 		return ExitConfig
 	case errors.Is(err, git.ErrNotARepo), errors.As(err, &state):
 		return ExitRepo

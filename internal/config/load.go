@@ -39,6 +39,7 @@ func Load(opts Options) (*Config, error) {
 		opts.Env = os.LookupEnv
 	}
 	cfg := Default()
+	cfg.env = opts.Env
 
 	globalPath := opts.GlobalPath
 	if globalPath == "" {
@@ -295,11 +296,14 @@ func APIKey(provider string, env func(string) (string, bool)) string {
 }
 
 // resolvePath expands `~` and makes a relative path absolute against base.
-func resolvePath(path, base string) string {
+func resolvePath(path, base string, env func(string) (string, bool)) string {
 	if path == "" {
 		return ""
 	}
-	path = expandHome(path, os.LookupEnv)
+	if env == nil {
+		env = os.LookupEnv
+	}
+	path = expandHome(path, env)
 	if filepath.IsAbs(path) {
 		return path
 	}

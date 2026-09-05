@@ -56,7 +56,8 @@ func (e *env) answering(p ui.Prompter) *app.App {
 }
 
 // repoConfig writes a .autogit.json and reloads the configuration through it,
-// the way a real run reaches a preset override.
+// the way a real run reaches a preset override. Branch protection stays off,
+// as it is in newEnv.
 func (e *env) repoConfig(doc string) {
 	e.t.Helper()
 	e.write(config.FileName, doc)

@@ -34,6 +34,9 @@ type Config struct {
 	presetLayers []presetLayer
 	// sources lists the config files that were actually read, for `doctor`.
 	sources []string
+	// env is the environment Load read, kept so that a `~` in a prompt path
+	// expands against the same one rather than the process's.
+	env func(string) (string, bool)
 }
 
 // Diff controls how much of the change the model gets to see.
@@ -152,7 +155,7 @@ func (c *Config) ResolvePreset() (preset.Preset, error) {
 				fmt.Errorf("unknown preset %q; built in: %v", c.Preset, preset.Names()),
 			}
 		}
-		p = preset.Named(c.Preset)
+		p = preset.Empty(c.Preset)
 	}
 
 	for _, layer := range c.presetLayers {
@@ -163,7 +166,7 @@ func (c *Config) ResolvePreset() (preset.Preset, error) {
 		if err := decodeStrict(override.raw, &p); err != nil {
 			return preset.Preset{}, &Error{fmt.Errorf("presets.%s: %w", c.Preset, err)}
 		}
-		resolvePromptPaths(&p, layer.dir)
+		resolvePromptPaths(&p, layer.dir, c.env)
 	}
 
 	if err := p.Validate(); err != nil {
@@ -181,7 +184,7 @@ func (c *Config) definedInLayers(name string) bool {
 	return false
 }
 
-func resolvePromptPaths(p *preset.Preset, dir string) {
-	p.Commit.Prompt = resolvePath(p.Commit.Prompt, dir)
-	p.Branch.Prompt = resolvePath(p.Branch.Prompt, dir)
+func resolvePromptPaths(p *preset.Preset, dir string, env func(string) (string, bool)) {
+	p.Commit.Prompt = resolvePath(p.Commit.Prompt, dir, env)
+	p.Branch.Prompt = resolvePath(p.Branch.Prompt, dir, env)
 }

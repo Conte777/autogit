@@ -26,7 +26,11 @@ type BranchRequest struct {
 // ParseBranchArgs splits `branch` arguments into a ticket prefix and free text.
 // The leading argument becomes the ticket only when the preset would accept it
 // as one, so a description that merely looks like a ticket stays a description.
-func ParseBranchArgs(args []string, format preset.BranchFormat) BranchRequest {
+func (a *App) ParseBranchArgs(args []string) BranchRequest {
+	return parseBranchArgs(args, a.preset.Branch)
+}
+
+func parseBranchArgs(args []string, format preset.BranchFormat) BranchRequest {
 	if len(args) > 0 && ticketMatches(args[0], format.TicketPattern) {
 		return BranchRequest{
 			Ticket:      strings.ToUpper(args[0]),
@@ -34,12 +38,6 @@ func ParseBranchArgs(args []string, format preset.BranchFormat) BranchRequest {
 		}
 	}
 	return BranchRequest{Description: strings.Join(args, " ")}
-}
-
-// ParseBranchArgs splits `branch` arguments against this App's own preset, so
-// a caller that no longer holds the preset can still ask.
-func (a *App) ParseBranchArgs(args []string) BranchRequest {
-	return ParseBranchArgs(args, a.preset.Branch)
 }
 
 // ticketMatches reports whether arg is exactly what pattern describes. A preset

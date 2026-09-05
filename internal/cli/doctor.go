@@ -42,7 +42,7 @@ func runDoctor(ctx context.Context, g *globals, out *ui.UI) error {
 	cfg, err := config.Load(config.Options{
 		RepoRoot:   repoRoot,
 		GlobalPath: g.confPath,
-		Env:        g.lookupEnv,
+		Env:        g.env,
 	})
 	if err != nil {
 		out.Print("config       BROKEN: %v", err)
@@ -70,7 +70,7 @@ func runDoctor(ctx context.Context, g *globals, out *ui.UI) error {
 	out.Print("preset       %s", cfg.Preset)
 	out.Print("provider     %s (model %s)", cfg.Provider, cfg.Model())
 
-	return checkProvider(ctx, cfg, g.lookupEnv, out)
+	return checkProvider(ctx, cfg, g.env, out)
 }
 
 func reportState(ctx context.Context, out *ui.UI, repo *git.Repo, passthrough bool) {

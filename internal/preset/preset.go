@@ -168,9 +168,9 @@ func Builtin(name string) (Preset, bool) {
 	return p, true
 }
 
-// Named is the empty preset under a name: the starting point for one that
-// exists only in config layers.
-func Named(name string) Preset { return Preset{name: name} }
+// Empty is the preset under a name and nothing else: the starting point for one
+// that exists only in config layers.
+func Empty(name string) Preset { return Preset{name: name} }
 
 // EmbeddedPrompt returns the built-in prompt text for an operation.
 func EmbeddedPrompt(preset, op string) (string, error) {
@@ -251,6 +251,17 @@ func (p Preset) Validate() error {
 	}
 	if p.Branch.Name != "" && !strings.Contains(p.Branch.Name, "{{") {
 		return fmt.Errorf("branch.name must be a template, e.g. {{.Prefix}}/{{.Slug}}")
+	}
+	// A preset that declares no prompt file falls back on the embedded one of
+	// its own name. Without either there is nothing to send, and the run would
+	// only find out once the model was already being asked.
+	for op, path := range map[string]string{"commit": p.Commit.Prompt, "branch": p.Branch.Prompt} {
+		if path != "" {
+			continue
+		}
+		if _, err := EmbeddedPrompt(p.name, op); err != nil {
+			return fmt.Errorf("%s.prompt is required: %w", op, err)
+		}
 	}
 	return nil
 }

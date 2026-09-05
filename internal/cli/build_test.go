@@ -112,6 +112,11 @@ func TestBuildMissingAPIKeyNamesTheVariable(t *testing.T) {
 	if !strings.Contains(err.Error(), "OPENAI_API_KEY") {
 		t.Errorf("err = %v, want the variable to set", err)
 	}
+	// A provider that cannot be built is a configuration problem: nothing was
+	// ever sent, and scripts branch on the code.
+	if got := ExitCode(err); got != ExitConfig {
+		t.Errorf("ExitCode(%v) = %d, want %d", err, got, ExitConfig)
+	}
 }
 
 // The whole point of the env seam: build reads what it is handed, not what the
