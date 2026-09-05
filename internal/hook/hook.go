@@ -32,13 +32,14 @@ const (
 
 // Command is a parsed slash command.
 type Command struct {
-	Kind        Kind
-	All         bool
-	Tracked     bool
-	Force       bool
-	DryRun      bool
-	Ticket      string
-	Description string
+	Kind    Kind
+	All     bool
+	Tracked bool
+	Force   bool
+	DryRun  bool
+	// Args are the words after `/branch`, still unsplit: only the preset knows
+	// which leading word is a ticket id and which is description text.
+	Args []string
 }
 
 // Runner performs the command and returns the line to show the user.
@@ -53,8 +54,6 @@ type decision struct {
 
 // commit-msg must be tried before commit: it is a prefix of it.
 var trigger = regexp.MustCompile(`^\s*/(commit-msg|commit|branch)(\s|$)`)
-
-var ticketArg = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9]*-[0-9]+$`)
 
 // Run reads the hook payload, and blocks the prompt when it matched. Anything
 // that did not match leaves the prompt alone and exits silently.
@@ -108,7 +107,7 @@ func Parse(prompt string) (Command, bool) {
 
 	cmd := Command{Kind: kind}
 	if kind == KindBranch {
-		parseBranchArgs(&cmd, strings.Fields(rest))
+		cmd.Args = strings.Fields(rest)
 		return cmd, true
 	}
 
@@ -125,12 +124,4 @@ func Parse(prompt string) (Command, bool) {
 		}
 	}
 	return cmd, true
-}
-
-func parseBranchArgs(cmd *Command, fields []string) {
-	if len(fields) > 0 && ticketArg.MatchString(fields[0]) {
-		cmd.Ticket = strings.ToUpper(fields[0])
-		fields = fields[1:]
-	}
-	cmd.Description = strings.Join(fields, " ")
 }

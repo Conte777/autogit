@@ -22,6 +22,32 @@ const (
 	StageTracked StageMode = "tracked"
 )
 
+// StageModeFor maps the boolean flags a command line carries onto a StageMode.
+// The two are not exclusive on every surface, so `all` wins over `tracked`.
+func StageModeFor(all, tracked bool) StageMode {
+	switch {
+	case all:
+		return StageAll
+	case tracked:
+		return StageTracked
+	default:
+		return StageStaged
+	}
+}
+
+// ParseStageMode maps the MCP tool's string argument onto a StageMode. Anything
+// unrecognised means the default: commit what is already staged.
+func ParseStageMode(s string) StageMode {
+	switch StageMode(s) {
+	case StageAll:
+		return StageAll
+	case StageTracked:
+		return StageTracked
+	default:
+		return StageStaged
+	}
+}
+
 // CommitRequest is one commit or commit-msg run.
 type CommitRequest struct {
 	Stage StageMode

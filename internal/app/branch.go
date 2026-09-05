@@ -10,6 +10,7 @@ import (
 	"text/template"
 
 	"github.com/Conte777/autogit/internal/gen"
+	"github.com/Conte777/autogit/internal/preset"
 	"github.com/Conte777/autogit/internal/prompt"
 	"github.com/Conte777/autogit/internal/validate"
 )
@@ -20,6 +21,26 @@ type BranchRequest struct {
 	Ticket string
 	// Description is free text. Empty means: work it out from the diff.
 	Description string
+}
+
+// ParseBranchArgs splits `branch` arguments into a ticket prefix and free text.
+// The leading argument becomes the ticket only when the preset would accept it
+// as one, so a description that merely looks like a ticket stays a description.
+func ParseBranchArgs(args []string, format preset.BranchFormat) BranchRequest {
+	if len(args) > 0 && ticketMatches(args[0], format.TicketPattern) {
+		return BranchRequest{
+			Ticket:      strings.ToUpper(args[0]),
+			Description: strings.Join(args[1:], " "),
+		}
+	}
+	return BranchRequest{Description: strings.Join(args, " ")}
+}
+
+// ticketMatches reports whether arg is exactly what pattern describes. A preset
+// that declares no pattern describes nothing: there a ticket can only arrive
+// named, never guessed out of free text.
+func ticketMatches(arg, pattern string) bool {
+	return arg != "" && pattern != "" && validate.ExtractTicket(arg, pattern) == strings.ToUpper(arg)
 }
 
 // BranchResult is the branch that was created.
@@ -43,7 +64,7 @@ func (a *App) Branch(ctx context.Context, req BranchRequest) (BranchResult, erro
 
 	format := a.Preset.Branch
 	ticket := strings.ToUpper(strings.TrimSpace(req.Ticket))
-	if ticket != "" && format.TicketPattern != "" && validate.ExtractTicket(ticket, format.TicketPattern) != ticket {
+	if ticket != "" && format.TicketPattern != "" && !ticketMatches(ticket, format.TicketPattern) {
 		return BranchResult{}, fmt.Errorf("%q does not look like a ticket id for this preset", req.Ticket)
 	}
 

@@ -73,7 +73,7 @@ func (s *Server) commit(ctx context.Context, _ *mcp.CallToolRequest, in CommitIn
 		// No allowProtectedBranch parameter exists on purpose: a model must not
 		// be able to talk itself into committing on main.
 		result, err := a.Commit(ctx, app.CommitRequest{
-			Stage:   stageMode(in.StageMode),
+			Stage:   app.ParseStageMode(in.StageMode),
 			Preview: in.DryRun,
 			NoInput: true,
 		})
@@ -161,16 +161,5 @@ func errorResult(text string) *mcp.CallToolResult {
 	return &mcp.CallToolResult{
 		IsError: true,
 		Content: []mcp.Content{&mcp.TextContent{Text: text}},
-	}
-}
-
-func stageMode(s string) app.StageMode {
-	switch s {
-	case "all":
-		return app.StageAll
-	case "tracked":
-		return app.StageTracked
-	default:
-		return app.StageStaged
 	}
 }
