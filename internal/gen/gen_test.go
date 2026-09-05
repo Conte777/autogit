@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Conte777/autogit/internal/gen"
 	"github.com/Conte777/autogit/internal/provider/mock"
@@ -188,5 +189,21 @@ func TestGenerateCustomCorrection(t *testing.T) {
 	}
 	if turns := p.SessionTurns(0); !strings.HasPrefix(turns[1], "FIXIT: ") {
 		t.Errorf("second turn = %q, want the custom correction", turns[1])
+	}
+}
+
+func TestGenerateReportsATimeoutAsAProviderFailure(t *testing.T) {
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
+	p := &mock.Provider{Replies: []string{"feat: too late"}}
+
+	_, err := gen.Generate(ctx, p, req(p, 3))
+
+	var provErr *gen.ProviderError
+	if !errors.As(err, &provErr) {
+		t.Fatalf("err = %v (%T), want a *gen.ProviderError", err, err)
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("err = %v, want it to wrap context.DeadlineExceeded", err)
 	}
 }

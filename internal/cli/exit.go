@@ -39,35 +39,33 @@ func ExitCode(err error) int {
 	}
 
 	var (
-		usage    *usageError
-		state    *git.StateError
-		cfgErr   *config.Error
-		provCfg  *configProviderError
-		protErr  *app.ProtectedBranchError
-		provErr  *gen.ProviderError
-		failErr  *gen.FailureError
-		noInput  = errors.Is(err, ui.ErrNoInput)
-		canceled = errors.Is(err, context.Canceled) || errors.Is(err, app.ErrCanceled)
+		usage   *usageError
+		state   *git.StateError
+		execErr *git.ExecError
+		cfgErr  *config.Error
+		protErr *app.ProtectedBranchError
+		provErr *gen.ProviderError
+		failErr *gen.FailureError
 	)
 
 	switch {
 	case errors.As(err, &usage):
 		return ExitUsage
-	case errors.As(err, &cfgErr), errors.As(err, &provCfg):
+	case errors.Is(err, context.Canceled), errors.Is(err, app.ErrCanceled):
+		return ExitCanceled
+	case errors.As(err, &cfgErr):
 		return ExitConfig
-	case errors.Is(err, git.ErrNotARepo), errors.As(err, &state):
+	case errors.Is(err, git.ErrNotARepo), errors.As(err, &state), errors.As(err, &execErr):
 		return ExitRepo
 	case app.IsNothingToCommit(err), errors.Is(err, app.ErrNoBranchInput):
 		return ExitNothing
 	case errors.As(err, &protErr):
 		return ExitProtected
-	case errors.As(err, &provErr), errors.Is(err, context.DeadlineExceeded):
+	case errors.As(err, &provErr):
 		return ExitProvider
 	case errors.As(err, &failErr):
 		return ExitValidation
-	case canceled:
-		return ExitCanceled
-	case noInput:
+	case errors.Is(err, ui.ErrNoInput):
 		// A question with nobody to answer it is a usage problem: the caller
 		// should have passed the flag instead.
 		return ExitUsage
