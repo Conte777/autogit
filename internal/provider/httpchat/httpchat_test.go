@@ -10,7 +10,18 @@ import (
 	"testing"
 
 	"github.com/Conte777/autogit/internal/provider/anthropic"
+	"github.com/Conte777/autogit/internal/provider/httpchat"
 )
+
+func anthropicProvider(key, baseURL string, client *http.Client) *httpchat.Provider {
+	chat := &anthropic.Chat{Settings: httpchat.Settings{
+		APIKey:    key,
+		Model:     "claude-haiku-4-5",
+		BaseURL:   baseURL,
+		MaxTokens: 1024,
+	}}
+	return &httpchat.Provider{Chat: chat, Client: client}
+}
 
 type capturedBody struct {
 	Model    string `json:"model"`
@@ -40,10 +51,7 @@ func TestSessionReplaysHistory(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	p, err := anthropic.New(anthropic.Config{APIKey: "sk-test", BaseURL: srv.URL}, srv.Client())
-	if err != nil {
-		t.Fatal(err)
-	}
+	p := anthropicProvider("sk-test", srv.URL, srv.Client())
 	s, err := p.Start(context.Background(), "SYS")
 	if err != nil {
 		t.Fatal(err)
@@ -85,7 +93,7 @@ func TestRetriesOn503AndGivesUpOn401(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	p, _ := anthropic.New(anthropic.Config{APIKey: "k", BaseURL: srv.URL}, srv.Client())
+	p := anthropicProvider("k", srv.URL, srv.Client())
 	s, _ := p.Start(context.Background(), "sys")
 	got, err := s.Send(context.Background(), "go")
 	if err != nil {
@@ -103,7 +111,7 @@ func TestRetriesOn503AndGivesUpOn401(t *testing.T) {
 	}))
 	defer auth.Close()
 
-	p, _ = anthropic.New(anthropic.Config{APIKey: "bad", BaseURL: auth.URL}, auth.Client())
+	p = anthropicProvider("bad", auth.URL, auth.Client())
 	s, _ = p.Start(context.Background(), "sys")
 	_, err = s.Send(context.Background(), "go")
 	if err == nil || !strings.Contains(err.Error(), "invalid x-api-key") {
@@ -111,11 +119,5 @@ func TestRetriesOn503AndGivesUpOn401(t *testing.T) {
 	}
 	if authCalls.Load() != 1 {
 		t.Errorf("a 401 was retried %d times, want none", authCalls.Load()-1)
-	}
-}
-
-func TestNewRequiresAPIKey(t *testing.T) {
-	if _, err := anthropic.New(anthropic.Config{}, nil); err == nil {
-		t.Fatal("New succeeded without an API key")
 	}
 }

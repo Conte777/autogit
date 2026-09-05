@@ -200,29 +200,15 @@ func applyEnv(cfg *Config, env func(string) (string, bool)) error {
 
 // SetModel overrides the model of the currently selected provider.
 func (c *Config) SetModel(model string) {
-	switch c.Provider {
-	case "anthropic":
-		c.Providers.Anthropic.Model = model
-	case "claude-cli":
-		c.Providers.ClaudeCLI.Model = model
-	case "openai":
-		c.Providers.OpenAI.Model = model
-	case "gemini":
-		c.Providers.Gemini.Model = model
+	if spec, ok := LookupProvider(c.Provider); ok {
+		*spec.Model(&c.Providers) = model
 	}
 }
 
 // Model reports the model of the selected provider.
 func (c *Config) Model() string {
-	switch c.Provider {
-	case "anthropic":
-		return c.Providers.Anthropic.Model
-	case "claude-cli":
-		return c.Providers.ClaudeCLI.Model
-	case "openai":
-		return c.Providers.OpenAI.Model
-	case "gemini":
-		return c.Providers.Gemini.Model
+	if spec, ok := LookupProvider(c.Provider); ok {
+		return *spec.Model(&c.Providers)
 	}
 	return ""
 }
@@ -285,17 +271,8 @@ func APIKey(provider string, env func(string) (string, bool)) string {
 	if env == nil {
 		env = os.LookupEnv
 	}
-	var specific string
-	switch provider {
-	case "anthropic":
-		specific = "ANTHROPIC_API_KEY"
-	case "openai":
-		specific = "OPENAI_API_KEY"
-	case "gemini":
-		specific = "GEMINI_API_KEY"
-	}
-	if specific != "" {
-		if v, ok := env(specific); ok && v != "" {
+	if spec, ok := LookupProvider(provider); ok && spec.EnvKey != "" {
+		if v, ok := env(spec.EnvKey); ok && v != "" {
 			return v
 		}
 	}

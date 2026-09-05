@@ -29,6 +29,15 @@ type Chat interface {
 	Reply(body []byte) (string, error)
 }
 
+// Settings is what every HTTP dialect needs to address its endpoint. The
+// blanks are already filled: a dialect never falls back to anything itself.
+type Settings struct {
+	APIKey    string
+	Model     string
+	BaseURL   string
+	MaxTokens int
+}
+
 // Provider adapts a Chat into a gen.Provider.
 type Provider struct {
 	Chat       Chat

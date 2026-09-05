@@ -131,12 +131,7 @@ func Default() Config {
 				":(exclude)yarn.lock",
 			},
 		},
-		Providers: Providers{
-			Anthropic: HTTPProvider{Model: "claude-haiku-4-5", MaxTokens: 1024},
-			ClaudeCLI: ClaudeCLI{Binary: "claude", Model: "haiku"},
-			OpenAI:    HTTPProvider{Model: "gpt-4.1-mini", BaseURL: "https://api.openai.com/v1", MaxTokens: 1024},
-			Gemini:    HTTPProvider{Model: "gemini-2.5-flash", MaxTokens: 1024},
-		},
+		Providers: defaultProviders(),
 	}
 }
 
