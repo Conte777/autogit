@@ -92,9 +92,7 @@ func (e *env) commitFile(name, content, message string) {
 
 func (e *env) head() string {
 	e.t.Helper()
-	cmd := exec.Command("git", "-C", e.dir, "rev-parse", "HEAD")
-	cmd.Env = git.Environ()
-	out, err := cmd.Output()
+	out, err := exec.Command("git", "-C", e.dir, "rev-parse", "HEAD").Output()
 	if err != nil {
 		return ""
 	}
@@ -110,7 +108,7 @@ func (e *env) stagedDiff() string {
 func tryGit(dir string, args ...string) error {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
-	cmd.Env = git.Environ("LC_ALL=C", "GIT_TERMINAL_PROMPT=0")
+	cmd.Env = append(os.Environ(), "LC_ALL=C", "GIT_TERMINAL_PROMPT=0")
 	return cmd.Run()
 }
 
@@ -125,7 +123,7 @@ func gitRun(t *testing.T, dir string, args ...string) string {
 	t.Helper()
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
-	cmd.Env = git.Environ("LC_ALL=C", "GIT_TERMINAL_PROMPT=0")
+	cmd.Env = append(os.Environ(), "LC_ALL=C", "GIT_TERMINAL_PROMPT=0")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)

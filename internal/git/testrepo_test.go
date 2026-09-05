@@ -25,7 +25,7 @@ func runGit(t *testing.T, dir string, args ...string) string {
 	t.Helper()
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
-	cmd.Env = Environ("LC_ALL=C", "GIT_TERMINAL_PROMPT=0")
+	cmd.Env = append(os.Environ(), "LC_ALL=C", "GIT_TERMINAL_PROMPT=0")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
@@ -37,7 +37,7 @@ func runGit(t *testing.T, dir string, args ...string) string {
 func tryGit(dir string, args ...string) {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
-	cmd.Env = Environ("LC_ALL=C", "GIT_TERMINAL_PROMPT=0")
+	cmd.Env = append(os.Environ(), "LC_ALL=C", "GIT_TERMINAL_PROMPT=0")
 	_ = cmd.Run()
 }
 
