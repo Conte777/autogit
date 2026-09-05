@@ -39,7 +39,7 @@ func branchCmd(g *globals, out *ui.UI) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			out.Print("switched to new branch %s", result.Name)
+			out.Print("%s", result.Summary())
 			return nil
 		},
 	}
