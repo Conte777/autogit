@@ -65,9 +65,25 @@ _Avoid_: trailer, metadata
 ## Generation
 
 **Provider**:
-An adapter that opens sessions with one model, whether over HTTP or by running
-a local binary.
+What opens sessions with one model. An HTTP provider is assembled from a
+dialect plus settings; a process provider runs a local binary instead. The name
+the user writes in `provider` selects one.
 _Avoid_: backend, client, driver
+
+**Dialect**:
+The API-specific half of an HTTP provider: it builds the request for one
+endpoint and reads the reply out of it. A process provider has none.
+_Avoid_: client, API adapter, integration
+
+**Settings**:
+The coordinates a dialect needs — key, model, endpoint, token budget — already
+fully resolved. A dialect never falls back to a default of its own.
+_Avoid_: options, params, credentials
+
+**Provider spec**:
+The single declaration of a provider: which config section holds its settings,
+which environment variable carries its key, what it falls back to.
+_Avoid_: registry entry, descriptor, definition
 
 **Session**:
 One dialogue with a model. Every correction for a single answer belongs to the
