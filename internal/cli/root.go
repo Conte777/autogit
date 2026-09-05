@@ -55,6 +55,14 @@ func Root(v Version) *cobra.Command {
 	f.StringVar(&g.confPath, "config", "", "path to the global config file")
 	f.BoolVar(&g.noInput, "no-input", false, "never ask questions; fail with a hint instead")
 
+	root.RunE = func(cmd *cobra.Command, _ []string) error { return cmd.Help() }
+	root.Args = func(cmd *cobra.Command, args []string) error {
+		if err := cobra.NoArgs(cmd, args); err != nil {
+			return &usageError{err}
+		}
+		return nil
+	}
+
 	root.AddCommand(
 		commitCmd(g, out),
 		commitMsgCmd(g, out),
@@ -64,8 +72,6 @@ func Root(v Version) *cobra.Command {
 		doctorCmd(g, out),
 		hookCmd(g),
 		mcpCmd(g),
-		installCmd(out),
-		uninstallCmd(out),
 	)
 	return root
 }
