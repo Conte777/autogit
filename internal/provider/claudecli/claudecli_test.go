@@ -115,6 +115,33 @@ exit 1
 	}
 }
 
+// The two pipes close independently: stdout can hit EOF while the last stderr
+// line is still in flight. Send must not report the death before the reason
+// for it has been read.
+func TestSessionReportsStderrThatArrivesAfterStdoutCloses(t *testing.T) {
+	bin, _ := fakeClaude(t, `
+read -r line
+exec 1>&-
+sleep 0.2
+echo 'Not logged in. Run /login.' >&2
+exit 1
+`)
+
+	s, err := (&Provider{Binary: bin}).Start(context.Background(), "sys")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = s.Close() }()
+
+	_, err = s.Send(context.Background(), "go")
+	if err == nil {
+		t.Fatal("Send succeeded although the process died")
+	}
+	if !strings.Contains(err.Error(), "Not logged in") {
+		t.Errorf("error drops stderr, which is the only diagnostic there is: %v", err)
+	}
+}
+
 func TestSessionReportsErrorResult(t *testing.T) {
 	bin, _ := fakeClaude(t, `
 read -r line
