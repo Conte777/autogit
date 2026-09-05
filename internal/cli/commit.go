@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/spf13/cobra"
 
@@ -36,7 +35,7 @@ func commitCmd(g *globals, out *ui.UI) *cobra.Command {
 				return &usageError{errors.New("--all and --tracked are mutually exclusive")}
 			}
 			req := app.CommitRequest{
-				Stage:   stageMode(all, tracked),
+				Stage:   app.StageModeFor(all, tracked),
 				Force:   force,
 				Preview: dryRun,
 				NoInput: g.noInput,
@@ -69,17 +68,6 @@ func commitMsgCmd(g *globals, out *ui.UI) *cobra.Command {
 	}
 }
 
-func stageMode(all, tracked bool) app.StageMode {
-	switch {
-	case all:
-		return app.StageAll
-	case tracked:
-		return app.StageTracked
-	default:
-		return app.StageStaged
-	}
-}
-
 func runCommit(ctx context.Context, g *globals, out *ui.UI, req app.CommitRequest) error {
 	if g.noInput {
 		out.SetInteractive(false)
@@ -93,28 +81,11 @@ func runCommit(ctx context.Context, g *globals, out *ui.UI, req app.CommitReques
 	if err != nil {
 		return err
 	}
-	if result.Preview {
-		out.Print("%s", result.Message)
-		// The note goes to stderr so that `autogit commit-msg > file` keeps the
-		// message and nothing else.
-		if result.Prepared != git.OpNone {
-			out.Warn("this is git's own %s message, used verbatim", result.Prepared)
-		}
-		return nil
+	out.Print("%s", result.Summary(app.SummaryHuman))
+	// A preview keeps the note on stderr so that `autogit commit-msg > file`
+	// gets the message and nothing else; the committed line carries it inline.
+	if result.Preview && result.Prepared != git.OpNone {
+		out.Warn("this is git's own %s message, used verbatim", result.Prepared)
 	}
-	line := fmt.Sprintf("committed %s: %s", result.ShortHash, firstLine(result.Message))
-	if result.Prepared != git.OpNone {
-		line += fmt.Sprintf(" (git's own %s message)", result.Prepared)
-	}
-	out.Print("%s", line)
 	return nil
-}
-
-func firstLine(s string) string {
-	for i := range len(s) {
-		if s[i] == '\n' {
-			return s[:i]
-		}
-	}
-	return s
 }
