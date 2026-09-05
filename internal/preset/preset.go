@@ -79,7 +79,8 @@ func (s ScopePolicy) Resolve(mined []string) ScopeVocabulary {
 	if s.Mode == validate.ScopeOff {
 		return v
 	}
-	if v.Hint = s.Values; len(v.Hint) == 0 {
+	v.Hint = s.Values
+	if len(v.Hint) == 0 {
 		v.Hint = mined
 	}
 	if s.Mode == validate.ScopeWhitelist {
@@ -115,7 +116,7 @@ var builtin = map[string]Preset{
 			MaxBodyLine:      100,
 			Footers:          true,
 			Body:             BodyPolicy{Mode: "auto", MinFiles: 3, MinLines: 40},
-			Scope:            ScopePolicy{Mode: "suggest", Top: 20, MinConventional: 10, HistoryDepth: 500},
+			Scope:            ScopePolicy{Mode: validate.ScopeSuggest, Top: 20, MinConventional: 10, HistoryDepth: 500},
 		},
 		Branch: BranchFormat{
 			Types:         []string{"feat", "fix"},
@@ -134,7 +135,7 @@ var builtin = map[string]Preset{
 			NoTrailingPeriod: true,
 			Footers:          false,
 			Body:             BodyPolicy{Mode: "off"},
-			Scope:            ScopePolicy{Mode: "off"},
+			Scope:            ScopePolicy{Mode: validate.ScopeOff},
 		},
 		Branch: BranchFormat{
 			Types:         []string{"feat", "fix"},
@@ -193,8 +194,8 @@ func (p Preset) BranchPrompt(name string) (*prompt.Prompt, error) {
 }
 
 // CommitRules turns the format into the checker gen.Generate will use.
-// branchSlug and scopes come from the repository, so they are arguments rather
-// than preset fields.
+// branchSlug and the scope vocabulary come from the repository, so they are
+// arguments rather than preset fields.
 func (f CommitFormat) CommitRules(branchSlug string, scope ScopeVocabulary) validate.CommitRules {
 	return validate.CommitRules{
 		Types:            f.Types,
@@ -206,7 +207,7 @@ func (f CommitFormat) CommitRules(branchSlug string, scope ScopeVocabulary) vali
 		AllowFooters:     f.Footers,
 		MaxBodyLine:      f.MaxBodyLine,
 		BranchSlug:       branchSlug,
-		ScopeMode:        scope.Mode,
+		ScopeMode:        f.Scope.Mode,
 		Scopes:           scope.Allowed,
 	}
 }

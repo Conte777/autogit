@@ -14,9 +14,12 @@ type CommitData struct {
 	Types         []string
 	MaxSubject    int
 	Scopes        []string // history vocabulary; empty means "say nothing about scopes"
-	ScopeMode     validate.ScopeMode
-	WantBody      bool
-	AllowFooters  bool
+	// ScopeMode is typed here but reaches a preset template as a bare string:
+	// `{{if eq .ScopeMode "off"}}` in a user-authored .md has no compiler behind
+	// it, and cannot have one.
+	ScopeMode    validate.ScopeMode
+	WantBody     bool
+	AllowFooters bool
 }
 
 // BranchData is the template contract of a branch prompt.

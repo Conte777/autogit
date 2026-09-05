@@ -11,6 +11,9 @@ import (
 // surface: a terminal prints one line under a message the user just approved,
 // while the hook and the MCP tool answer a model that never sees the
 // repository and needs the whole message plus a reason it was not generated.
+//
+// Every style keeps its first line self-contained: the hook shows that line and
+// nothing else to the user, as the system message of a blocked prompt.
 type SummaryStyle int
 
 const (
@@ -33,7 +36,7 @@ func (r CommitResult) Summary(style SummaryStyle) string {
 	if style == SummaryHuman {
 		return fmt.Sprintf("committed %s: %s%s", r.ShortHash, firstLine(r.Message), r.preparedNote(style))
 	}
-	return fmt.Sprintf("committed %s\n\n%s%s", r.ShortHash, r.Message, r.preparedNote(style))
+	return fmt.Sprintf("committed %s: %s%s", r.ShortHash, r.Message, r.preparedNote(style))
 }
 
 // preparedNote labels a message git wrote itself, so a reader does not take an
