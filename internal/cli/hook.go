@@ -33,8 +33,7 @@ func hookCmd(g *globals) *cobra.Command {
 func runHookCommand(ctx context.Context, g *globals, c hook.Command) (string, error) {
 	// No terminal on this surface: questions become errors carrying the exact
 	// command to retype.
-	g.noInput = true
-	a, err := build(ctx, g, app.SurfaceHook, ui.Noop{})
+	a, err := build(ctx, g, ui.Noop{})
 	if err != nil {
 		return "", err
 	}
@@ -52,7 +51,6 @@ func runHookCommand(ctx context.Context, g *globals, c hook.Command) (string, er
 			Stage:   stageMode(c.All, c.Tracked),
 			Force:   c.Force,
 			Preview: c.DryRun || c.Kind == hook.KindCommitMsg,
-			NoInput: true,
 		})
 		if err != nil {
 			return "", err

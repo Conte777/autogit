@@ -31,7 +31,7 @@ func doctorCmd(g *globals, out *ui.UI) *cobra.Command {
 func runDoctor(ctx context.Context, g *globals, out *ui.UI) error {
 	repoRoot := ""
 	var repo *git.Repo
-	if opened, err := openRepo(ctx, g.repo, "cli"); err == nil {
+	if opened, err := openRepo(ctx, g.repo, prompterFor(g, out)); err == nil {
 		repo = opened
 		repoRoot = repo.Root()
 		out.Print("repository   %s", repoRoot)

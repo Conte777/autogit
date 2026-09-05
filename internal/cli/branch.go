@@ -27,11 +27,7 @@ func branchCmd(g *globals, out *ui.UI) *cobra.Command {
 			if ticket != "" {
 				t = ticket
 			}
-			if g.noInput {
-				out.SetInteractive(false)
-			}
-
-			a, err := build(cmd.Context(), g, app.SurfaceCLI, out)
+			a, err := build(cmd.Context(), g, prompterFor(g, out))
 			if err != nil {
 				return err
 			}
