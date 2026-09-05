@@ -17,8 +17,9 @@ func mcpCmd(g *globals) *cobra.Command {
 	return &cobra.Command{
 		Use:   "mcp",
 		Short: "Run the MCP server on stdio",
-		Long: "Exposes `commit` and `branch` to an agent. Register it with:\n" +
-			"  claude mcp add --scope user autogit -- autogit mcp",
+		Long: "Exposes `commit` and `branch` to an agent. The autogit plugin for Claude\n" +
+			"Code already declares this server, so installing the plugin is enough; run\n" +
+			"it by hand only for an agent that has no plugin to carry it.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runMCP(cmd.Context(), g)

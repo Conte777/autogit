@@ -2,6 +2,7 @@ package autogit_test
 
 import (
 	"encoding/json"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -41,6 +42,17 @@ type hookGroup struct {
 
 type hookFile struct {
 	Hooks map[string][]hookGroup `json:"hooks"`
+}
+
+type mcpServer struct {
+	Type    string            `json:"type"`
+	Command string            `json:"command"`
+	Args    []string          `json:"args"`
+	Env     map[string]string `json:"env"`
+}
+
+type mcpFile struct {
+	Servers map[string]mcpServer `json:"mcpServers"`
 }
 
 func readJSON[T any](t *testing.T, path string) T {
@@ -181,5 +193,37 @@ func TestNoLauncherScript(t *testing.T) {
 	}
 	if strings.Contains(string(data), "CLAUDE_PLUGIN_ROOT") {
 		t.Error("hooks.json reaches into the plugin root; autogit is found on PATH")
+	}
+}
+
+func TestMCPServerRunsTheBinaryFromPath(t *testing.T) {
+	m := readJSON[mcpFile](t, ".mcp.json")
+
+	if len(m.Servers) != 1 {
+		t.Fatalf(".mcp.json declares %d servers, want 1", len(m.Servers))
+	}
+	server, ok := m.Servers["autogit"]
+	if !ok {
+		t.Fatalf(".mcp.json declares %v, want a server named %q", slices.Collect(maps.Keys(m.Servers)), "autogit")
+	}
+	if server.Type != "stdio" {
+		t.Errorf("server type = %q, want %q", server.Type, "stdio")
+	}
+	if server.Command != "autogit" {
+		t.Errorf("server command = %q, want %q: the binary comes from PATH", server.Command, "autogit")
+	}
+	if diff := cmp.Diff([]string{"mcp"}, server.Args); diff != "" {
+		t.Errorf("server args differ (-want +got):\n%s", diff)
+	}
+	if len(server.Env) != 0 {
+		t.Errorf("server carries env %v; API keys reach autogit from the user's own environment", server.Env)
+	}
+
+	data, err := os.ReadFile(".mcp.json")
+	if err != nil {
+		t.Fatalf("read .mcp.json: %v", err)
+	}
+	if strings.Contains(string(data), "CLAUDE_PLUGIN_ROOT") {
+		t.Error(".mcp.json reaches into the plugin root; autogit is found on PATH")
 	}
 }

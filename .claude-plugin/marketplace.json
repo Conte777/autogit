@@ -10,7 +10,7 @@
     {
       "name": "autogit",
       "source": "./plugins/autogit",
-      "description": "Slash commands and the UserPromptSubmit hook that make /autogit:commit, /autogit:commit-msg and /autogit:branch run deterministically.",
+      "description": "Slash commands, the UserPromptSubmit hook and an MCP server, all answered by the autogit binary on PATH: /autogit:commit, /autogit:commit-msg and /autogit:branch run deterministically, and an agent gets the commit and branch tools.",
       "category": "productivity",
       "keywords": ["git", "commit", "conventional-commits", "branch"]
     }

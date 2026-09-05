@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "autogit": {
+      "type": "stdio",
+      "command": "autogit",
+      "args": ["mcp"]
+    }
+  }
+}
