@@ -53,7 +53,7 @@ type decision struct {
 }
 
 // commit-msg must be tried before commit: it is a prefix of it.
-var trigger = regexp.MustCompile(`^\s*/(commit-msg|commit|branch)(\s|$)`)
+var trigger = regexp.MustCompile(`^\s*/(?:autogit:)?(commit-msg|commit|branch)(?:\s|$)`)
 
 // Run reads the hook payload, and blocks the prompt when it matched. Anything
 // that did not match leaves the prompt alone and exits silently.
@@ -96,14 +96,15 @@ func block(out io.Writer, reason string) error {
 }
 
 // Parse understands both the historical bare-word grammar (`/commit all force`)
-// and flags (`/commit --all --force`).
+// and flags (`/commit --all --force`), in the bare and the plugin-namespaced
+// (`/autogit:commit`) forms.
 func Parse(prompt string) (Command, bool) {
-	m := trigger.FindStringSubmatch(prompt)
+	m := trigger.FindStringSubmatchIndex(prompt)
 	if m == nil {
 		return Command{}, false
 	}
-	kind := Kind(m[1])
-	rest := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(prompt), "/"+string(kind)))
+	kind := Kind(prompt[m[2]:m[3]])
+	rest := strings.TrimSpace(prompt[m[1]:])
 
 	cmd := Command{Kind: kind}
 	if kind == KindBranch {
