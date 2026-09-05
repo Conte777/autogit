@@ -8,6 +8,7 @@ import (
 
 	"github.com/Conte777/autogit/internal/gen"
 	"github.com/Conte777/autogit/internal/git"
+	"github.com/Conte777/autogit/internal/preset"
 	"github.com/Conte777/autogit/internal/prompt"
 	"github.com/Conte777/autogit/internal/ui"
 	"github.com/Conte777/autogit/internal/validate"
@@ -308,7 +309,7 @@ func (a *App) generateMessage(ctx context.Context, branch git.Branch, diff git.D
 		branchSlug = validate.BranchSlugText(branch.Name)
 	}
 
-	scopes, err := a.scopes(ctx)
+	scope, err := a.scopeVocabulary(ctx)
 	if err != nil {
 		return gen.Result{}, err
 	}
@@ -322,8 +323,8 @@ func (a *App) generateMessage(ctx context.Context, branch git.Branch, diff git.D
 		DiffTruncated: diff.Truncated,
 		Types:         format.Types,
 		MaxSubject:    format.MaxSubject,
-		Scopes:        scopes,
-		ScopeMode:     format.Scope.Mode,
+		Scopes:        scope.Hint,
+		ScopeMode:     scope.Mode,
 		WantBody:      format.WantBody(len(diff.Files), countChangedLines(diff.Text)),
 		AllowFooters:  format.Footers,
 	}
@@ -339,26 +340,28 @@ func (a *App) generateMessage(ctx context.Context, branch git.Branch, diff git.D
 
 	// WantBody shapes the prompt only. "a body is unnecessary here" is a
 	// heuristic, and enforcing it would burn every retry on a legitimate body.
-	rules := format.CommitRules(branchSlug, scopes)
+	rules := format.CommitRules(branchSlug, scope)
 	return a.generate(ctx, gen.Request{System: system, Prompt: user, Validator: rules})
 }
 
-// scopes mines the repository's own scope vocabulary. Nothing is passed to the
-// model when the history is too thin to be a good example.
-func (a *App) scopes(ctx context.Context) ([]string, error) {
-	scope := a.Preset.Commit.Scope
-	if scope.Mode == "off" || len(scope.Values) > 0 {
-		return scope.Values, nil
+// scopeVocabulary resolves the scope policy against this repository, mining the
+// project's own vocabulary out of history when the policy asks for it. Nothing
+// is mined when the history is too thin to be a good example.
+func (a *App) scopeVocabulary(ctx context.Context) (preset.ScopeVocabulary, error) {
+	policy := a.Preset.Commit.Scope
+	var mined []string
+	if policy.NeedsHistory() {
+		depth := policy.HistoryDepth
+		if depth <= 0 {
+			depth = 500
+		}
+		subjects, err := a.Repo.Subjects(ctx, depth)
+		if err != nil {
+			return preset.ScopeVocabulary{}, err
+		}
+		mined = validate.CollectScopes(subjects, policy.Top, policy.MinConventional)
 	}
-	depth := scope.HistoryDepth
-	if depth <= 0 {
-		depth = 500
-	}
-	subjects, err := a.Repo.Subjects(ctx, depth)
-	if err != nil {
-		return nil, err
-	}
-	return validate.CollectScopes(subjects, scope.Top, scope.MinConventional), nil
+	return policy.Resolve(mined), nil
 }
 
 func countChangedLines(diffText string) int {

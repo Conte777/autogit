@@ -45,11 +45,48 @@ type BodyPolicy struct {
 
 // ScopePolicy decides what the model may put in the scope slot.
 type ScopePolicy struct {
-	Mode            string   `json:"mode" jsonschema:"off, suggest or whitelist"`
-	Values          []string `json:"values,omitempty" jsonschema:"whitelist: the allowed scopes"`
-	Top             int      `json:"top,omitempty" jsonschema:"suggest: how many scopes to mine from history"`
-	MinConventional int      `json:"minConventional,omitempty" jsonschema:"suggest: skip the vocabulary below this many conventional commits in history"`
-	HistoryDepth    int      `json:"historyDepth,omitempty" jsonschema:"suggest: how many commits to read"`
+	Mode            validate.ScopeMode `json:"mode" jsonschema:"off, suggest or whitelist"`
+	Values          []string           `json:"values,omitempty" jsonschema:"whitelist: the allowed scopes"`
+	Top             int                `json:"top,omitempty" jsonschema:"suggest: how many scopes to mine from history"`
+	MinConventional int                `json:"minConventional,omitempty" jsonschema:"suggest: skip the vocabulary below this many conventional commits in history"`
+	HistoryDepth    int                `json:"historyDepth,omitempty" jsonschema:"suggest: how many commits to read"`
+}
+
+// NeedsHistory reports whether the vocabulary still has to be mined out of the
+// repository: `off` uses no scopes at all, and a configured list is already the
+// answer.
+func (s ScopePolicy) NeedsHistory() bool {
+	return s.Mode != validate.ScopeOff && len(s.Values) == 0
+}
+
+// ScopeVocabulary is the policy resolved against one repository. It is the only
+// place the mine / whitelist / off decision is made, so no caller downstream
+// has to spell a mode.
+type ScopeVocabulary struct {
+	Mode validate.ScopeMode
+	// Hint is the vocabulary the prompt offers the model. Empty means "say
+	// nothing about scopes".
+	Hint []string
+	// Allowed is the whitelist the checker enforces, set only under
+	// ScopeWhitelist. Every other mode leaves the checker with nothing to
+	// compare against.
+	Allowed []string
+}
+
+// Resolve folds the scopes mined from history into the configured policy.
+func (s ScopePolicy) Resolve(mined []string) ScopeVocabulary {
+	v := ScopeVocabulary{Mode: s.Mode}
+	if s.Mode == validate.ScopeOff {
+		return v
+	}
+	v.Hint = s.Values
+	if len(v.Hint) == 0 {
+		v.Hint = mined
+	}
+	if s.Mode == validate.ScopeWhitelist {
+		v.Allowed = v.Hint
+	}
+	return v
 }
 
 // BranchFormat describes the branch prompt and the name that comes out of it.
@@ -79,7 +116,7 @@ var builtin = map[string]Preset{
 			MaxBodyLine:      100,
 			Footers:          true,
 			Body:             BodyPolicy{Mode: "auto", MinFiles: 3, MinLines: 40},
-			Scope:            ScopePolicy{Mode: "suggest", Top: 20, MinConventional: 10, HistoryDepth: 500},
+			Scope:            ScopePolicy{Mode: validate.ScopeSuggest, Top: 20, MinConventional: 10, HistoryDepth: 500},
 		},
 		Branch: BranchFormat{
 			Types:         []string{"feat", "fix"},
@@ -98,7 +135,7 @@ var builtin = map[string]Preset{
 			NoTrailingPeriod: true,
 			Footers:          false,
 			Body:             BodyPolicy{Mode: "off"},
-			Scope:            ScopePolicy{Mode: "off"},
+			Scope:            ScopePolicy{Mode: validate.ScopeOff},
 		},
 		Branch: BranchFormat{
 			Types:         []string{"feat", "fix"},
@@ -157,10 +194,10 @@ func (p Preset) BranchPrompt(name string) (*prompt.Prompt, error) {
 }
 
 // CommitRules turns the format into the checker gen.Generate will use.
-// branchSlug and scopes come from the repository, so they are arguments rather
-// than preset fields.
-func (f CommitFormat) CommitRules(branchSlug string, scopes []string) validate.CommitRules {
-	rules := validate.CommitRules{
+// branchSlug and the scope vocabulary come from the repository, so they are
+// arguments rather than preset fields.
+func (f CommitFormat) CommitRules(branchSlug string, scope ScopeVocabulary) validate.CommitRules {
+	return validate.CommitRules{
 		Types:            f.Types,
 		TicketPattern:    f.TicketPattern,
 		MaxSubject:       f.MaxSubject,
@@ -170,13 +207,9 @@ func (f CommitFormat) CommitRules(branchSlug string, scopes []string) validate.C
 		AllowFooters:     f.Footers,
 		MaxBodyLine:      f.MaxBodyLine,
 		BranchSlug:       branchSlug,
-		ScopeMode:        validate.ScopeMode(f.Scope.Mode),
-		Scopes:           f.Scope.Values,
+		ScopeMode:        f.Scope.Mode,
+		Scopes:           scope.Allowed,
 	}
-	if rules.ScopeMode == validate.ScopeWhitelist && len(rules.Scopes) == 0 {
-		rules.Scopes = scopes
-	}
-	return rules
 }
 
 // WantBody decides whether the prompt should ask for a body.
@@ -199,7 +232,7 @@ func (p Preset) Validate() error {
 		return fmt.Errorf("commit.body.mode must be off, auto or always (got %q)", p.Commit.Body.Mode)
 	}
 	switch p.Commit.Scope.Mode {
-	case string(validate.ScopeOff), string(validate.ScopeSuggest), string(validate.ScopeWhitelist):
+	case validate.ScopeOff, validate.ScopeSuggest, validate.ScopeWhitelist:
 	default:
 		return fmt.Errorf("commit.scope.mode must be off, suggest or whitelist (got %q)", p.Commit.Scope.Mode)
 	}
