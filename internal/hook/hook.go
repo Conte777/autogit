@@ -30,6 +30,10 @@ const (
 	KindBranch    Kind = "branch"
 )
 
+// Kinds lists every operation the hook answers, in the order a user meets them.
+// The plugin's command set is checked against it.
+func Kinds() []Kind { return []Kind{KindCommit, KindCommitMsg, KindBranch} }
+
 // Command is a parsed slash command.
 type Command struct {
 	Kind    Kind

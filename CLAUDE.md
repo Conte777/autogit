@@ -8,6 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 go test ./...                  # CI runs it with -race
 golangci-lint run              # v2 config, gofumpt as the formatter
 go run ./cmd/autogit schema | diff -u schema/config.schema.json -
+claude plugin validate ./plugins/autogit && claude plugin validate .   # plugin + marketplace manifests
 ```
 
 `lefthook install` wires the local gates: gofumpt + `go vet` + `golangci-lint --fast-only` + gitleaks on commit, `go test ./...` and a `go mod tidy` cleanliness check on push. Requires `brew install lefthook gitleaks`.

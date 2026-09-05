@@ -1,0 +1,18 @@
+{
+  "$schema": "https://www.schemastore.org/claude-code-marketplace.json",
+  "name": "autogit",
+  "owner": {
+    "name": "Alexey Kolesnikov",
+    "url": "https://github.com/Conte777"
+  },
+  "description": "Deterministic git commits and branch names for Claude Code, backed by the autogit binary.",
+  "plugins": [
+    {
+      "name": "autogit",
+      "source": "./plugins/autogit",
+      "description": "Slash commands and the UserPromptSubmit hook that make /autogit:commit, /autogit:commit-msg and /autogit:branch run deterministically.",
+      "category": "productivity",
+      "keywords": ["git", "commit", "conventional-commits", "branch"]
+    }
+  ]
+}

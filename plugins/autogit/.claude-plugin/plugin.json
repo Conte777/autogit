@@ -1,0 +1,10 @@
+{
+  "$schema": "https://www.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "autogit",
+  "version": "0.1.0",
+  "description": "Deterministic git commits and branch names: /autogit:commit, /autogit:commit-msg and /autogit:branch are answered by the autogit binary on PATH, not by the model.",
+  "author": { "name": "Alexey Kolesnikov" },
+  "repository": "https://github.com/Conte777/autogit",
+  "license": "MIT",
+  "keywords": ["git", "commit", "conventional-commits", "branch"]
+}

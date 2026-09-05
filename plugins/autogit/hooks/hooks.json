@@ -1,0 +1,27 @@
+{
+  "$schema": "https://www.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "autogit hook",
+            "timeout": 120
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v autogit >/dev/null 2>&1 || printf '%s\\n' '{\"systemMessage\":\"autogit is not on PATH, so /autogit:commit, /autogit:commit-msg and /autogit:branch will do nothing. Install it with: brew install Conte777/tap/autogit\"}'",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
