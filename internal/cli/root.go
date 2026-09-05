@@ -2,8 +2,10 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -56,12 +58,8 @@ func Root(v Version) *cobra.Command {
 	f.BoolVar(&g.noInput, "no-input", false, "never ask questions; fail with a hint instead")
 
 	root.RunE = func(cmd *cobra.Command, _ []string) error { return cmd.Help() }
-	root.Args = func(cmd *cobra.Command, args []string) error {
-		if err := cobra.NoArgs(cmd, args); err != nil {
-			return &usageError{err}
-		}
-		return nil
-	}
+	root.Args = unknownCommandIsUsage
+	root.SuggestionsMinimumDistance = 2
 
 	root.AddCommand(
 		commitCmd(g, out),
@@ -146,4 +144,15 @@ func applyFlags(cfg *config.Config, g *globals) {
 	if g.model != "" {
 		cfg.SetModel(g.model)
 	}
+}
+
+func unknownCommandIsUsage(cmd *cobra.Command, args []string) error {
+	if len(args) == 0 {
+		return nil
+	}
+	msg := fmt.Sprintf("unknown command %q for %q", args[0], cmd.CommandPath())
+	if suggestions := cmd.SuggestionsFor(args[0]); len(suggestions) > 0 {
+		msg += "\n\nDid you mean this?\n\t" + strings.Join(suggestions, "\n\t")
+	}
+	return &usageError{errors.New(msg)}
 }
