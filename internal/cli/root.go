@@ -57,9 +57,7 @@ func Root(v Version) *cobra.Command {
 	f.StringVar(&g.confPath, "config", "", "path to the global config file")
 	f.BoolVar(&g.noInput, "no-input", false, "never ask questions; fail with a hint instead")
 
-	root.RunE = func(cmd *cobra.Command, _ []string) error { return cmd.Help() }
-	root.Args = unknownCommandIsUsage
-	root.SuggestionsMinimumDistance = 2
+	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error { return &usageError{err} })
 
 	root.AddCommand(
 		commitCmd(g, out),
@@ -71,7 +69,40 @@ func Root(v Version) *cobra.Command {
 		hookCmd(g),
 		mcpCmd(g),
 	)
+	usageErrors(root)
 	return root
+}
+
+// usageErrors makes every node of the tree answer a bad invocation with exit 2.
+// Cobra's own answer is a plain error — a bug in autogit, by the exit codes —
+// and under a command it cannot run, no error at all: RunE is what carries a
+// mistyped subcommand as far as Args.
+func usageErrors(cmd *cobra.Command) {
+	if cmd.HasSubCommands() {
+		cmd.SuggestionsMinimumDistance = 2
+		if cmd.Args == nil {
+			cmd.Args = unknownCommandIsUsage
+		}
+		if !cmd.Runnable() {
+			cmd.RunE = func(c *cobra.Command, _ []string) error { return c.Help() }
+		}
+	}
+	if args := cmd.Args; args != nil {
+		cmd.Args = func(c *cobra.Command, a []string) error {
+			err := args(c, a)
+			if err == nil {
+				return nil
+			}
+			var usage *usageError
+			if errors.As(err, &usage) {
+				return err
+			}
+			return &usageError{err}
+		}
+	}
+	for _, sub := range cmd.Commands() {
+		usageErrors(sub)
+	}
 }
 
 // Execute runs the tree and returns the process exit code.

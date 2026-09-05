@@ -69,6 +69,47 @@ func TestUnknownCommandIsAUsageError(t *testing.T) {
 	})
 }
 
+// Every node of the tree answers a bad invocation the same way: exit 2. Below
+// the root, cobra's own answers were a plain error — exit 1, which the ADR
+// reads as a bug in autogit — or, under a parent command that cannot run, no
+// error at all.
+func TestBadInvocationBelowTheRootIsAUsageError(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		args []string
+	}{
+		{"bad flag on the root", []string{"--bogus"}},
+		{"bad flag on a subcommand", []string{"schema", "--bogus"}},
+		{"bad flag on a leaf command", []string{"preset", "list", "--bogus"}},
+		{"missing argument", []string{"preset", "eject"}},
+		{"surplus argument", []string{"schema", "extra"}},
+		{"unknown word after a parent command", []string{"preset", "bogus"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := runRoot(t, tc.args...)
+			if err == nil {
+				t.Fatalf("autogit %s was accepted", strings.Join(tc.args, " "))
+			}
+			if got := ExitCode(err); got != ExitUsage {
+				t.Errorf("ExitCode() = %d, want %d (%v)", got, ExitUsage, err)
+			}
+		})
+	}
+
+	t.Run("a parent command still helps", func(t *testing.T) {
+		if err := runRoot(t, "preset"); err != nil {
+			t.Errorf("autogit preset failed: %v", err)
+		}
+	})
+
+	t.Run("suggests the subcommand that was meant", func(t *testing.T) {
+		err := runRoot(t, "preset", "lst")
+		if err == nil || !strings.Contains(err.Error(), "Did you mean this?\n\tlist") {
+			t.Errorf("no suggestion for a near miss below the root: %v", err)
+		}
+	})
+}
+
 func runRoot(t *testing.T, args ...string) error {
 	t.Helper()
 	root := Root(Version{})
