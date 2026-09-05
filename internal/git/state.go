@@ -1,0 +1,141 @@
+package git
+
+import (
+	"context"
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
+)
+
+// Operation is the multi-step git operation the repository is in the middle of.
+type Operation string
+
+const (
+	OpNone       Operation = ""
+	OpMerge      Operation = "merge"
+	OpSquash     Operation = "squash merge"
+	OpCherryPick Operation = "cherry-pick"
+	OpRevert     Operation = "revert"
+	OpRebase     Operation = "rebase"
+	OpBisect     Operation = "bisect"
+)
+
+// State is what the git directory says about work already under way.
+type State struct {
+	Op Operation
+	// Locked means another git process holds index.lock. It excludes Op: a
+	// repository nobody else may touch is the only thing worth reporting.
+	Locked bool
+}
+
+// State reads the git directory once and reports what it found. The order
+// below is deliberate: a stale SQUASH_MSG outlives the commit it was written
+// for, so every real in-progress operation is looked for first.
+func (r *Repo) State(ctx context.Context) (State, error) {
+	dir, err := r.gitDir(ctx)
+	if err != nil {
+		return State{}, err
+	}
+	exists := func(name string) bool {
+		_, statErr := os.Stat(filepath.Join(dir, name))
+		return statErr == nil
+	}
+	if exists("index.lock") {
+		return State{Locked: true}, nil
+	}
+	for _, c := range []struct {
+		path string
+		op   Operation
+	}{
+		{"rebase-merge", OpRebase},
+		{"rebase-apply", OpRebase},
+		{"BISECT_LOG", OpBisect},
+		{"REVERT_HEAD", OpRevert},
+		{"CHERRY_PICK_HEAD", OpCherryPick},
+		{"MERGE_HEAD", OpMerge},
+		{"SQUASH_MSG", OpSquash},
+	} {
+		if exists(c.path) {
+			return State{Op: c.op}, nil
+		}
+	}
+	return State{}, nil
+}
+
+// Blocked reports the states where an automated commit would do something the
+// user did not ask for. A squash merge is not one of them: it leaves no ref
+// behind, git considers the working tree ordinary, and refusing it would break
+// commands that work today.
+func (s State) Blocked() error {
+	if s.Locked {
+		return &StateError{Reason: "index.lock exists: another git process is running"}
+	}
+	var what string
+	switch s.Op {
+	case OpMerge:
+		what = "a merge is in progress"
+	case OpCherryPick:
+		what = "a cherry-pick is in progress"
+	case OpRevert:
+		what = "a revert is in progress"
+	case OpRebase:
+		what = "a rebase or `git am` is in progress"
+	case OpBisect:
+		what = "a bisect is in progress"
+	default:
+		return nil
+	}
+	return &StateError{Reason: what + "; finish or abort it first"}
+}
+
+// HasPreparedMessage reports whether git has already written the message this
+// commit should carry.
+func (s State) HasPreparedMessage() bool {
+	switch s.Op {
+	case OpMerge, OpSquash, OpCherryPick, OpRevert:
+		return true
+	default:
+		return false
+	}
+}
+
+// PreparedMessage returns the message git wrote for op, comments stripped. A
+// missing or empty file is not an error: the caller decides what that means.
+func (r *Repo) PreparedMessage(ctx context.Context, op Operation) (string, error) {
+	var name string
+	switch op {
+	case OpMerge, OpCherryPick, OpRevert:
+		name = "MERGE_MSG"
+	case OpSquash:
+		name = "SQUASH_MSG"
+	default:
+		return "", nil
+	}
+	dir, err := r.gitDir(ctx)
+	if err != nil {
+		return "", err
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, name)) //nolint:gosec // a path inside the repository's own git directory
+	if errors.Is(err, os.ErrNotExist) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	// git's own editor path drops the `# Conflicts:` block the same way.
+	out, err := r.run(ctx, defaultTimeout, string(raw), "stripspace", "--strip-comments")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimRight(out, "\n"), nil
+}
+
+// Unmerged lists the paths still carrying conflict markers.
+func (r *Repo) Unmerged(ctx context.Context) ([]string, error) {
+	out, err := r.run(ctx, defaultTimeout, "", "diff", "--name-only", "--diff-filter=U", "-z")
+	if err != nil {
+		return nil, err
+	}
+	return splitZ(out), nil
+}

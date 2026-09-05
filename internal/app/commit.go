@@ -41,6 +41,9 @@ type CommitResult struct {
 	Preview   bool
 	Attempts  int
 	Branch    string
+	// Prepared names the operation whose own message was committed verbatim.
+	// Empty when the message was generated.
+	Prepared git.Operation
 }
 
 // Commit stages, generates, checks and commits.
@@ -48,12 +51,29 @@ type CommitResult struct {
 // The invariant on every error path: nothing is committed, and the index is
 // touched only where the caller explicitly asked for it via Stage.
 func (a *App) Commit(ctx context.Context, req CommitRequest) (CommitResult, error) {
-	if err := a.Repo.CheckState(ctx); err != nil {
+	st, err := a.Repo.State(ctx)
+	if err != nil {
 		return CommitResult{}, err
 	}
+	prepared, op := a.preparedMessage(ctx, st)
+	if op == git.OpNone {
+		if blocked := st.Blocked(); blocked != nil {
+			return CommitResult{}, blocked
+		}
+	}
+
 	branch, err := a.Repo.Current(ctx)
 	if err != nil {
 		return CommitResult{}, err
+	}
+
+	if op != git.OpNone {
+		if req.Preview {
+			return CommitResult{Message: prepared, Branch: branch.Name, Preview: true, Prepared: op}, nil
+		}
+		if conflictErr := a.requireResolved(ctx); conflictErr != nil {
+			return CommitResult{}, conflictErr
+		}
 	}
 
 	if !req.Preview {
@@ -61,42 +81,76 @@ func (a *App) Commit(ctx context.Context, req CommitRequest) (CommitResult, erro
 			return CommitResult{}, protErr
 		}
 	}
-	if stageErr := a.stage(ctx, req); stageErr != nil {
+	// `git merge -s ours` records a commit with no diff at all, and refusing it
+	// would leave the merge half-finished with no way out through autogit.
+	if stageErr := a.stage(ctx, req, op == git.OpMerge); stageErr != nil {
 		return CommitResult{}, stageErr
 	}
 
-	diff, err := a.Repo.StagedDiff(ctx, a.diffOptions())
-	if err != nil {
-		return CommitResult{}, err
+	out := CommitResult{Branch: branch.Name, Preview: req.Preview, Prepared: op}
+	if op != git.OpNone {
+		out.Message = prepared
 	}
-	if diff.Empty() {
-		return CommitResult{}, ErrNothingToCommit
-	}
-
-	result, err := a.generateMessage(ctx, branch, diff)
-	if err != nil {
-		return CommitResult{}, err
-	}
-	out := CommitResult{
-		Message:  result.Value,
-		Attempts: result.Attempts,
-		Branch:   branch.Name,
-		Preview:  req.Preview,
+	if op != git.OpMerge {
+		diff, diffErr := a.Repo.StagedDiff(ctx, a.diffOptions())
+		if diffErr != nil {
+			return CommitResult{}, diffErr
+		}
+		if diff.Empty() {
+			return CommitResult{}, ErrNothingToCommit
+		}
+		if op == git.OpNone {
+			result, genErr := a.generateMessage(ctx, branch, diff)
+			if genErr != nil {
+				return CommitResult{}, genErr
+			}
+			out.Message, out.Attempts = result.Value, result.Attempts
+		}
 	}
 	if req.Preview {
 		return out, nil
 	}
 
-	if confirmErr := a.confirmCommit(req, result.Value); confirmErr != nil {
+	if confirmErr := a.confirmCommit(req, out.Message); confirmErr != nil {
 		return CommitResult{}, confirmErr
 	}
 
-	landed, err := a.Repo.Commit(ctx, result.Value)
+	landed, err := a.Repo.Commit(ctx, out.Message)
 	if err != nil {
 		return CommitResult{}, err
 	}
-	out.Message, out.Hash, out.ShortHash = landed.Message, landed.Hash, landed.ShortHash
+	out.Hash, out.ShortHash = landed.Hash, landed.ShortHash
+	out.Message = landed.Message
 	return out, nil
+}
+
+// preparedMessage returns the message git already wrote for this state, or the
+// zero operation when there is none to use. A message that cannot be read
+// counts as absent, so the caller falls back on the refusal that shipped
+// before passthrough rather than inventing a new one.
+func (a *App) preparedMessage(ctx context.Context, st git.State) (string, git.Operation) {
+	if !a.Config.PreparedMessage || !st.HasPreparedMessage() {
+		return "", git.OpNone
+	}
+	msg, err := a.Repo.PreparedMessage(ctx, st.Op)
+	if err != nil || msg == "" {
+		return "", git.OpNone
+	}
+	return msg, st.Op
+}
+
+// requireResolved refuses a passthrough commit while conflicts are open. It
+// runs before staging on purpose: `--all` would otherwise commit the markers.
+func (a *App) requireResolved(ctx context.Context) error {
+	unmerged, err := a.Repo.Unmerged(ctx)
+	if err != nil {
+		return err
+	}
+	if len(unmerged) == 0 {
+		return nil
+	}
+	return &git.StateError{Reason: fmt.Sprintf(
+		"resolve the conflicts first, then stage them: %s", strings.Join(unmerged, ", "))}
 }
 
 func (a *App) checkProtected(branch git.Branch, req CommitRequest) error {
@@ -123,7 +177,7 @@ func (a *App) checkProtected(branch git.Branch, req CommitRequest) error {
 // stage fills the index, asking what to take when it is empty and the tree is
 // not. Outside a terminal the question becomes an error carrying the command
 // the user should have typed.
-func (a *App) stage(ctx context.Context, req CommitRequest) error {
+func (a *App) stage(ctx context.Context, req CommitRequest, allowEmpty bool) error {
 	switch req.Stage {
 	case StageAll:
 		if err := a.Repo.StageAll(ctx); err != nil {
@@ -133,6 +187,9 @@ func (a *App) stage(ctx context.Context, req CommitRequest) error {
 		if err := a.Repo.StageTracked(ctx); err != nil {
 			return err
 		}
+	}
+	if allowEmpty {
+		return nil
 	}
 
 	// Re-checked here rather than only on entry: an MCP request can be replayed

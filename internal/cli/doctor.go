@@ -33,11 +33,7 @@ func runDoctor(ctx context.Context, g *globals, out *ui.UI) error {
 	if repo, err := openRepo(ctx, g.repo, "cli"); err == nil {
 		repoRoot = repo.Root()
 		out.Print("repository   %s", repoRoot)
-		if stateErr := repo.CheckState(ctx); stateErr != nil {
-			out.Print("state        BLOCKED: %v", stateErr)
-		} else {
-			out.Print("state        clean")
-		}
+		reportState(ctx, out, repo)
 		reportBranch(ctx, out, repo)
 	} else {
 		out.Print("repository   none (%v)", err)
@@ -65,6 +61,20 @@ func runDoctor(ctx context.Context, g *globals, out *ui.UI) error {
 	out.Print("provider     %s (model %s)", cfg.Provider, cfg.Model())
 
 	return checkProvider(ctx, cfg, out)
+}
+
+func reportState(ctx context.Context, out *ui.UI, repo *git.Repo) {
+	st, err := repo.State(ctx)
+	switch {
+	case err != nil:
+		out.Print("state        unknown: %v", err)
+	case st.Blocked() != nil:
+		out.Print("state        BLOCKED: %v", st.Blocked())
+	case st.HasPreparedMessage():
+		out.Print("state        %s in progress; git's own message will be used", st.Op)
+	default:
+		out.Print("state        clean")
+	}
 }
 
 func reportBranch(ctx context.Context, out *ui.UI, repo *git.Repo) {

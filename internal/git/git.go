@@ -158,32 +158,6 @@ func (r *Repo) gitDir(ctx context.Context) (string, error) {
 	return strings.TrimSpace(out), nil
 }
 
-// CheckState refuses repository states where an automated commit would do
-// something the user did not ask for.
-func (r *Repo) CheckState(ctx context.Context) error {
-	dir, err := r.gitDir(ctx)
-	if err != nil {
-		return err
-	}
-	inProgress := []struct{ path, reason string }{
-		{"MERGE_HEAD", "a merge is in progress"},
-		{"rebase-merge", "a rebase is in progress"},
-		{"rebase-apply", "a rebase or `git am` is in progress"},
-		{"CHERRY_PICK_HEAD", "a cherry-pick is in progress"},
-		{"REVERT_HEAD", "a revert is in progress"},
-		{"BISECT_LOG", "a bisect is in progress"},
-	}
-	for _, s := range inProgress {
-		if _, err := os.Stat(filepath.Join(dir, s.path)); err == nil {
-			return &StateError{Reason: s.reason + "; finish or abort it first"}
-		}
-	}
-	if _, err := os.Stat(filepath.Join(dir, "index.lock")); err == nil {
-		return &StateError{Reason: "index.lock exists: another git process is running"}
-	}
-	return nil
-}
-
 // Branch is the checked-out branch. Name is a short hash when Detached.
 type Branch struct {
 	Name     string

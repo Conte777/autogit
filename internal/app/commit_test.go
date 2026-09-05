@@ -10,6 +10,7 @@ import (
 
 	"github.com/Conte777/autogit/internal/app"
 	"github.com/Conte777/autogit/internal/gen"
+	"github.com/Conte777/autogit/internal/git"
 	"github.com/Conte777/autogit/internal/provider/mock"
 	"github.com/Conte777/autogit/internal/ui"
 )
@@ -224,19 +225,157 @@ func TestCommitOnDetachedHeadSkipsTicketExtraction(t *testing.T) {
 	}
 }
 
-func TestCommitRefusesDuringMerge(t *testing.T) {
-	e := newEnv(t, "feat: add the file")
+// diverge builds `main` and `side` with conflicting edits to a.txt, and an
+// `extra` branch touching only c.txt, which merges into anything cleanly.
+func (e *env) diverge() {
+	e.t.Helper()
 	e.commitFile("a.txt", "one\n", "init")
-	e.git("switch", "-c", "side")
+	e.git("switch", "-c", "extra")
+	e.commitFile("c.txt", "extra only\n", "extra")
+	e.git("switch", "-c", "side", "main")
 	e.commitFile("a.txt", "side\n", "side")
 	e.git("switch", "main")
 	e.commitFile("a.txt", "main\n", "main")
+}
+
+func TestCommitUsesGitsOwnMergeMessage(t *testing.T) {
+	e := newEnv(t)
+	e.diverge()
+	_ = tryGit(e.dir, "merge", "side")
+	e.write("a.txt", "resolved\n")
+	e.git("add", "a.txt")
+
+	got, err := e.app().Commit(context.Background(), app.CommitRequest{Stage: app.StageStaged})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Message != "Merge branch 'side'" {
+		t.Errorf("Message = %q, want %q", got.Message, "Merge branch 'side'")
+	}
+	if got.Prepared != git.OpMerge {
+		t.Errorf("Prepared = %q, want %q", got.Prepared, git.OpMerge)
+	}
+	if e.prov.Sessions != 0 {
+		t.Errorf("the provider was asked %d time(s) for a message git had already written", e.prov.Sessions)
+	}
+	if parents := strings.Fields(e.git("log", "-1", "--format=%P")); len(parents) != 2 {
+		t.Errorf("the commit has %d parent(s), want 2", len(parents))
+	}
+}
+
+// `git merge -s ours` records a merge whose tree equals HEAD's. Refusing it for
+// an empty diff would leave the user with a merge they cannot finish.
+func TestCommitAllowsAMergeWithNoDiff(t *testing.T) {
+	e := newEnv(t)
+	e.diverge()
+	e.git("merge", "--no-commit", "-s", "ours", "side")
+
+	got, err := e.app().Commit(context.Background(), app.CommitRequest{Stage: app.StageStaged})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(got.Message, "Merge branch 'side'") {
+		t.Errorf("Message = %q", got.Message)
+	}
+	if e.prov.Sessions != 0 {
+		t.Errorf("the provider was asked %d time(s)", e.prov.Sessions)
+	}
+}
+
+func TestCommitUsesTheSquashMessage(t *testing.T) {
+	e := newEnv(t)
+	e.diverge()
+	e.git("merge", "--squash", "extra")
+
+	got, err := e.app().Commit(context.Background(), app.CommitRequest{Stage: app.StageStaged})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(got.Message, "Squashed commit of the following:") {
+		t.Errorf("Message = %q, want git's SQUASH_MSG", got.Message)
+	}
+	if got.Prepared != git.OpSquash {
+		t.Errorf("Prepared = %q, want %q", got.Prepared, git.OpSquash)
+	}
+	if e.prov.Sessions != 0 {
+		t.Errorf("the provider was asked %d time(s)", e.prov.Sessions)
+	}
+}
+
+// The conflict check runs before staging: `--all` would otherwise commit a file
+// full of conflict markers.
+func TestCommitRefusesUnresolvedConflicts(t *testing.T) {
+	e := newEnv(t)
+	e.diverge()
+	_ = tryGit(e.dir, "merge", "side")
+	before := e.head()
+
+	_, err := e.app().Commit(context.Background(), app.CommitRequest{Stage: app.StageAll})
+	var state *git.StateError
+	if !errors.As(err, &state) || !strings.Contains(err.Error(), "a.txt") {
+		t.Fatalf("err = %v, want a *git.StateError naming a.txt", err)
+	}
+	if e.head() != before {
+		t.Error("a commit was created despite the open conflict")
+	}
+	if unmerged := e.git("diff", "--name-only", "--diff-filter=U"); !strings.Contains(unmerged, "a.txt") {
+		t.Errorf("a.txt was staged behind the user's back; unmerged = %q", unmerged)
+	}
+}
+
+func TestCommitMsgPreviewsThePreparedMessage(t *testing.T) {
+	e := newEnv(t)
+	e.diverge()
 	_ = tryGit(e.dir, "merge", "side")
 
-	_, err := e.app().Commit(context.Background(), app.CommitRequest{Stage: app.StageStaged})
-	if err == nil || !strings.Contains(err.Error(), "merge") {
-		t.Fatalf("err = %v, want a merge-in-progress refusal", err)
+	got, err := e.app().Commit(context.Background(), app.CommitRequest{
+		Stage: app.StageStaged, Preview: true,
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
+	if got.Message != "Merge branch 'side'" {
+		t.Errorf("Message = %q", got.Message)
+	}
+	if !got.Preview || got.Prepared != git.OpMerge {
+		t.Errorf("result = %+v, want a merge preview", got)
+	}
+}
+
+// preparedMessage: false must reproduce the behaviour that shipped before the
+// passthrough existed, in both directions.
+func TestPreparedMessageOffRestoresTheOldBehaviour(t *testing.T) {
+	t.Run("merge is refused", func(t *testing.T) {
+		e := newEnv(t)
+		e.cfg.PreparedMessage = false
+		e.diverge()
+		_ = tryGit(e.dir, "merge", "side")
+		e.write("a.txt", "resolved\n")
+		e.git("add", "a.txt")
+
+		_, err := e.app().Commit(context.Background(), app.CommitRequest{Stage: app.StageStaged})
+		if err == nil || !strings.Contains(err.Error(), "a merge is in progress") {
+			t.Fatalf("err = %v, want a merge-in-progress refusal", err)
+		}
+	})
+
+	t.Run("squash generates", func(t *testing.T) {
+		e := newEnv(t, "feat: add the extra file")
+		e.cfg.PreparedMessage = false
+		e.diverge()
+		e.git("merge", "--squash", "extra")
+
+		got, err := e.app().Commit(context.Background(), app.CommitRequest{Stage: app.StageStaged})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Message != "feat: add the extra file" {
+			t.Errorf("Message = %q, want the generated message", got.Message)
+		}
+		if got.Prepared != git.OpNone {
+			t.Errorf("Prepared = %q, want empty", got.Prepared)
+		}
+	})
 }
 
 func TestBodyLinesWithHashSurviveCleanup(t *testing.T) {

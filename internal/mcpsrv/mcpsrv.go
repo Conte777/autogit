@@ -11,6 +11,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Conte777/autogit/internal/app"
+	"github.com/Conte777/autogit/internal/git"
 )
 
 // CommitInput is the `commit` tool's argument object.
@@ -80,10 +81,20 @@ func (s *Server) commit(ctx context.Context, _ *mcp.CallToolRequest, in CommitIn
 			return "", err
 		}
 		if result.Preview {
-			return result.Message, nil
+			return result.Message + preparedNote(result.Prepared), nil
 		}
-		return fmt.Sprintf("committed %s\n\n%s", result.ShortHash, result.Message), nil
+		return fmt.Sprintf("committed %s\n\n%s%s",
+			result.ShortHash, result.Message, preparedNote(result.Prepared)), nil
 	})
+}
+
+// preparedNote labels a message git wrote itself, so an agent does not read an
+// unvalidated `Merge branch 'x'` as a broken generation.
+func preparedNote(op git.Operation) string {
+	if op == git.OpNone {
+		return ""
+	}
+	return fmt.Sprintf("\n\n(git's own %s message, committed verbatim: no message was generated)", op)
 }
 
 func (s *Server) branch(ctx context.Context, _ *mcp.CallToolRequest, in BranchInput) (
