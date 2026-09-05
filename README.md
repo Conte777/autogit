@@ -15,8 +15,9 @@ your own API key is a one-line config change, not a rewrite.
 - **Four providers**: `claude-cli` (your existing Claude subscription, via the
   `claude` binary), `anthropic`, `openai` (also Ollama and LM Studio through
   `baseUrl`), `gemini`.
-- **Four surfaces**: the CLI, an MCP server for agents, a Claude Code
-  `UserPromptSubmit` hook, and an installer that wires the two together.
+- **Three surfaces**: the CLI, an MCP server for agents, and a Claude Code
+  `UserPromptSubmit` hook. An installer registers that hook and its slash
+  commands for you.
 - **Two built-in presets**: full Conventional Commits, and a single-line
   `TICKET: description` dialect. Eject either one and edit the prompts.
 
