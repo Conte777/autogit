@@ -86,8 +86,8 @@ func Execute(ctx context.Context, v Version) int {
 
 // build assembles everything an operation needs from flags, config and the
 // repository. It is the single place that decides what the run looks like.
-func build(ctx context.Context, g *globals, surface app.Surface, prompter ui.Prompter) (*app.App, error) {
-	repo, err := openRepo(ctx, g.repo, surface)
+func build(ctx context.Context, g *globals, prompter ui.Prompter) (*app.App, error) {
+	repo, err := openRepo(ctx, g.repo, prompter)
 	if err != nil {
 		return nil, err
 	}
@@ -114,8 +114,16 @@ func build(ctx context.Context, g *globals, surface app.Surface, prompter ui.Pro
 		PresetName: cfg.Preset,
 		Provider:   prov,
 		Prompt:     prompter,
-		Surface:    surface,
 	}, nil
+}
+
+// prompterFor picks who answers a question on the CLI. `--no-input` hands back
+// the same silent prompter mcp and hook use.
+func prompterFor(g *globals, out *ui.UI) ui.Prompter {
+	if g.noInput {
+		return ui.Noop{}
+	}
+	return out
 }
 
 // applyFlags is the last layer: flags beat environment beats files.

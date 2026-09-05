@@ -51,8 +51,10 @@ func (e *ExecError) Unwrap() error { return e.Err }
 
 // Options configures a Repo.
 type Options struct {
-	// Interactive allows git to prompt on the terminal (credential helpers,
-	// pinentry). Off for mcp/hook, where a prompt hangs the surface forever.
+	// Interactive allows git to ask for input — on the terminal and through
+	// the askpass helpers. Off wherever autogit itself has nobody to ask, so
+	// that git cannot stop for a question autogit promised would not come.
+	// Credential storage helpers answer without asking and stay enabled.
 	Interactive bool
 	// CommitTimeout bounds `git commit`. A signing setup that waits on
 	// pinentry would otherwise hang the caller forever. 0 uses the default.
@@ -96,6 +98,9 @@ func Open(ctx context.Context, dir string, opts Options) (*Repo, error) {
 // Root is the absolute path of the working tree.
 func (r *Repo) Root() string { return r.root }
 
+// Interactive reports whether git is allowed to ask this repo's caller anything.
+func (r *Repo) Interactive() bool { return r.opts.Interactive }
+
 func (r *Repo) commitTimeout() time.Duration {
 	if r.opts.CommitTimeout > 0 {
 		return r.opts.CommitTimeout
@@ -134,7 +139,7 @@ func (r *Repo) env() []string {
 	// Isolating from it is a test concern — see UnsetRepoLocation.
 	env := append(os.Environ(), "LC_ALL=C", "LANG=C")
 	if !r.opts.Interactive {
-		env = append(env, "GIT_TERMINAL_PROMPT=0")
+		env = append(env, "GIT_TERMINAL_PROMPT=0", "GIT_ASKPASS=", "SSH_ASKPASS=")
 	}
 	return env
 }

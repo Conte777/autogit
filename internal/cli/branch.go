@@ -20,11 +20,7 @@ func branchCmd(g *globals, out *ui.UI) *cobra.Command {
 			"the branch prefix when it matches the preset's ticket pattern; anything\n" +
 			"else is description text.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if g.noInput {
-				out.SetInteractive(false)
-			}
-
-			a, err := build(cmd.Context(), g, app.SurfaceCLI, out)
+			a, err := build(cmd.Context(), g, prompterFor(g, out))
 			if err != nil {
 				return err
 			}

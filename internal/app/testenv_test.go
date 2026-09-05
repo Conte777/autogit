@@ -41,8 +41,8 @@ func newEnv(t *testing.T, replies ...string) *env {
 	return &env{t: t, dir: dir, repo: repo, prov: &mock.Provider{Replies: replies}, cfg: &cfg}
 }
 
-// app builds an App on the CLI surface with no terminal, which is how every
-// non-interactive test wants it.
+// app builds an App with nobody to ask, which is how every non-interactive
+// test wants it.
 func (e *env) app() *app.App {
 	e.t.Helper()
 	p, err := e.cfg.ResolvePreset()
@@ -56,7 +56,6 @@ func (e *env) app() *app.App {
 		PresetName: e.cfg.Preset,
 		Provider:   e.prov,
 		Prompt:     ui.Noop{},
-		Surface:    app.SurfaceCLI,
 	}
 }
 

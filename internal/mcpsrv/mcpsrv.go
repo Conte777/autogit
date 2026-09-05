@@ -74,7 +74,6 @@ func (s *Server) commit(ctx context.Context, _ *mcp.CallToolRequest, in CommitIn
 		result, err := a.Commit(ctx, app.CommitRequest{
 			Stage:   app.ParseStageMode(in.StageMode),
 			Preview: in.DryRun,
-			NoInput: true,
 		})
 		if err != nil {
 			return "", err

@@ -119,7 +119,7 @@ func builder(t *testing.T, prov *mock.Provider, tweak func(*config.Config)) mcps
 		}
 		return &app.App{
 			Repo: r, Config: &cfg, Preset: p, PresetName: cfg.Preset,
-			Provider: prov, Prompt: ui.Noop{}, Surface: app.SurfaceMCP,
+			Provider: prov, Prompt: ui.Noop{},
 		}, nil
 	}
 }

@@ -64,9 +64,6 @@ func IsTerminal(f *os.File) bool {
 
 func (u *UI) Interactive() bool { return u.interactive }
 
-// SetInteractive forces questions off, for --no-input.
-func (u *UI) SetInteractive(v bool) { u.interactive = v }
-
 // Print writes a line to stdout.
 func (u *UI) Print(format string, a ...any) {
 	_, _ = fmt.Fprintf(u.out, format+"\n", a...)
@@ -133,8 +130,8 @@ func (u *UI) Choose(question string, options []Option) (string, error) {
 	}
 }
 
-// Noop answers nothing. It is what mcp and hook use: those surfaces have no
-// user attached, so a question there is a bug, not a pause.
+// Noop answers nothing. It is what mcp, hook and --no-input use: there is no
+// user attached, so a question there is an error, not a pause.
 type Noop struct{}
 
 func (Noop) Confirm(string, bool) (bool, error)      { return false, ErrNoInput }
