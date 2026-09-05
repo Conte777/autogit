@@ -36,7 +36,7 @@ func commitCmd(g *globals, out *ui.UI) *cobra.Command {
 				return &usageError{errors.New("--all and --tracked are mutually exclusive")}
 			}
 			req := app.CommitRequest{
-				Stage:   stageMode(all, tracked),
+				Stage:   app.StageModeFor(all, tracked),
 				Force:   force,
 				Preview: dryRun,
 				NoInput: g.noInput,
@@ -66,17 +66,6 @@ func commitMsgCmd(g *globals, out *ui.UI) *cobra.Command {
 				NoInput: g.noInput,
 			})
 		},
-	}
-}
-
-func stageMode(all, tracked bool) app.StageMode {
-	switch {
-	case all:
-		return app.StageAll
-	case tracked:
-		return app.StageTracked
-	default:
-		return app.StageStaged
 	}
 }
 

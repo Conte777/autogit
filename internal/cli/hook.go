@@ -41,7 +41,7 @@ func runHookCommand(ctx context.Context, g *globals, c hook.Command) (string, er
 
 	switch c.Kind {
 	case hook.KindBranch:
-		result, err := a.Branch(ctx, app.BranchRequest{Ticket: c.Ticket, Description: c.Description})
+		result, err := a.Branch(ctx, app.ParseBranchArgs(c.Args, a.Preset.Branch))
 		if err != nil {
 			return "", err
 		}
@@ -49,7 +49,7 @@ func runHookCommand(ctx context.Context, g *globals, c hook.Command) (string, er
 
 	default:
 		result, err := a.Commit(ctx, app.CommitRequest{
-			Stage:   stageMode(c.All, c.Tracked),
+			Stage:   app.StageModeFor(c.All, c.Tracked),
 			Force:   c.Force,
 			Preview: c.DryRun || c.Kind == hook.KindCommitMsg,
 			NoInput: true,

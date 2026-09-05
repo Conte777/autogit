@@ -1,17 +1,11 @@
 package cli
 
 import (
-	"regexp"
-	"strings"
-
 	"github.com/spf13/cobra"
 
 	"github.com/Conte777/autogit/internal/app"
 	"github.com/Conte777/autogit/internal/ui"
 )
-
-// ticketArg matches a leading argument that is only a ticket id.
-var ticketArg = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9]*-[0-9]+$`)
 
 func branchCmd(g *globals, out *ui.UI) *cobra.Command {
 	var ticket string
@@ -23,10 +17,6 @@ func branchCmd(g *globals, out *ui.UI) *cobra.Command {
 			"is derived from the uncommitted diff. A leading TICKET argument becomes\n" +
 			"the branch prefix.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			t, desc := splitTicket(args)
-			if ticket != "" {
-				t = ticket
-			}
 			if g.noInput {
 				out.SetInteractive(false)
 			}
@@ -35,7 +25,11 @@ func branchCmd(g *globals, out *ui.UI) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result, err := a.Branch(cmd.Context(), app.BranchRequest{Ticket: t, Description: desc})
+			req := app.ParseBranchArgs(args, a.Preset.Branch)
+			if ticket != "" {
+				req.Ticket = ticket
+			}
+			result, err := a.Branch(cmd.Context(), req)
 			if err != nil {
 				return err
 			}
@@ -46,12 +40,4 @@ func branchCmd(g *globals, out *ui.UI) *cobra.Command {
 
 	cmd.Flags().StringVar(&ticket, "ticket", "", "ticket id to use as the branch prefix")
 	return cmd
-}
-
-// splitTicket peels a leading ticket argument off the free text.
-func splitTicket(args []string) (ticket, description string) {
-	if len(args) > 0 && ticketArg.MatchString(args[0]) {
-		return strings.ToUpper(args[0]), strings.Join(args[1:], " ")
-	}
-	return "", strings.Join(args, " ")
 }
