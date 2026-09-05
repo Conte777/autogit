@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -19,6 +20,10 @@ const (
 	OpRevert     Operation = "revert"
 	OpRebase     Operation = "rebase"
 	OpBisect     Operation = "bisect"
+	// OpSequence is a multi-commit cherry-pick or revert. Only `--continue`
+	// advances its todo list, so committing one step would silently drop the
+	// rest, exactly as it would mid-rebase.
+	OpSequence Operation = "multi-commit cherry-pick or revert"
 	// OpPrepared is a message with no ref beside it. A clean `cherry-pick -n`
 	// writes MERGE_MSG and nothing else, so detection by ref alone would miss
 	// it and rewrite the original author's message.
@@ -54,6 +59,9 @@ func (r *Repo) State(ctx context.Context) (State, error) {
 	}{
 		{"rebase-merge", OpRebase},
 		{"rebase-apply", OpRebase},
+		// Ahead of the two *_HEAD refs it sits beside: a sequence in progress
+		// is the more important half of the truth.
+		{"sequencer", OpSequence},
 		{"BISECT_LOG", OpBisect},
 		{"REVERT_HEAD", OpRevert},
 		{"CHERRY_PICK_HEAD", OpCherryPick},
@@ -88,6 +96,9 @@ func (s State) Blocked() error {
 		what = "a rebase or `git am` is in progress"
 	case OpBisect:
 		what = "a bisect is in progress"
+	case OpSequence:
+		return &StateError{Reason: "a multi-commit cherry-pick or revert is in progress; " +
+			"only `git cherry-pick --continue` can advance it"}
 	default:
 		return nil
 	}
@@ -128,12 +139,25 @@ func (r *Repo) PreparedMessage(ctx context.Context, op Operation) (string, error
 	if err != nil {
 		return "", err
 	}
-	// git's own editor path drops the `# Conflicts:` block the same way.
-	out, err := r.run(ctx, defaultTimeout, string(raw), "stripspace", "--strip-comments")
-	if err != nil {
-		return "", err
+	return dropConflictBlock(string(raw)), nil
+}
+
+// conflictHeader matches the `# Conflicts:` line that opens the block git
+// appends, allowing for a core.commentChar other than '#'.
+var conflictHeader = regexp.MustCompile(`^\S Conflicts:[ \t]*$`)
+
+// dropConflictBlock removes git's trailing conflict listing and nothing else.
+// Stripping every comment line instead would delete an author's own body — a
+// cherry-picked `#123 the ticket` is content, not commentary.
+func dropConflictBlock(text string) string {
+	lines := strings.Split(text, "\n")
+	for i, ln := range lines {
+		if conflictHeader.MatchString(ln) {
+			lines = lines[:i]
+			break
+		}
 	}
-	return strings.TrimRight(out, "\n"), nil
+	return strings.TrimRight(strings.Join(lines, "\n"), " \t\n")
 }
 
 // Unmerged lists the paths still carrying conflict markers.

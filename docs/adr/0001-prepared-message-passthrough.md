@@ -57,12 +57,21 @@ message would materialise inside git, after the point where autogit could show
 it, and `autogit commit-msg` mid-merge would have nothing to print. Reading the
 file keeps one code path and one set of bytes.
 
-This has a consequence worth naming: the text is piped through
-`git stripspace --strip-comments` at read time, so the `# Conflicts:` block is
-gone before either the preview or the commit sees it. `Repo.Commit` keeps
-`--cleanup=whitespace`, which is what lets a generated body legitimately start a
-line with `#`. Cleaning at read time rather than at commit time is what keeps
-preview and commit byte-identical.
+This has a consequence worth naming: the `# Conflicts:` block has to be removed
+at read time, so that the preview and the commit see the same text.
+
+Removing it with `git stripspace --strip-comments` is the obvious way and is
+wrong. For a merge the message is git's own one-liner and nothing is lost, but
+for a cherry-pick or a revert `MERGE_MSG` **is the original author's whole
+commit message**, and every body line starting with `#` is content. A commit
+whose body reads `Refs:` / `#123 the ticket` / `#456 another` comes out as bare
+`Refs:` — both references silently deleted. That is the same mistake
+`Repo.Commit` already avoids by passing `--cleanup=whitespace` instead of the
+default.
+
+So only git's own conflict listing is cut: everything from the `# Conflicts:`
+header to the end, matched loosely enough to survive a non-default
+`core.commentChar`. Nothing else in the message is touched.
 
 ### The message file is the authority, not the ref
 
@@ -81,6 +90,13 @@ label in the output is what makes any reuse visible.
 `MERGE_MSG` is looked for last, after every real in-progress operation, so it
 never masks one.
 
+The bare state is the weakest signal we act on, and it is worth being explicit
+about what it costs. After `cherry-pick -n`, a user who keeps working and then
+commits gets their unrelated changes under the picked commit's message. We
+accept that because it is precisely what `git commit` does in the same
+situation — the alternative is autogit second-guessing git about the user's own
+`--no-commit`. The label in the output is what makes the reuse visible.
+
 ### The empty-index check is waived for a merge only
 
 `git merge -s ours` legitimately produces a commit whose tree equals HEAD's.
@@ -88,25 +104,47 @@ Refusing it for an empty diff would strand the user in a merge autogit cannot
 finish. Squash, cherry-pick and revert always stage something, so they keep the
 check.
 
+### A single pick passes through; a sequence does not
+
+`git cherry-pick A B C` runs through `.git/sequencer`, and only
+`cherry-pick --continue` advances its todo list. Committing the conflicted step
+with `git commit` lands that one commit and leaves the remaining picks
+unapplied, with no ref left to show for it — `State` would report the repository
+clean and the user would be told the pick succeeded. This is the rebase argument
+exactly, so a sequence blocks for the same reason.
+
+A single-commit pick or revert never creates the sequencer, and stays on the
+passthrough path.
+
 ### Unresolved conflicts are a hard error, before staging
 
 `autogit commit --all` runs `git add -A`. Against a half-resolved merge that
 stages files full of conflict markers. The check runs before the index is
-touched, and only on the passthrough path — before this change the state was
-refused outright, so there was nothing to guard.
+touched, and unconditionally — **not** only on the passthrough path.
+
+Gating it on passthrough would leave a hole: a conflicted `merge --squash` has
+no ref, so nothing blocks it, and with `preparedMessage: false` the commit would
+sail through with the markers in it. Since `preparedMessage` is settable from a
+repository `.autogit.json`, that hole would be reachable from a cloned repo.
+A guard against committing garbage must not depend on configuration.
+
+This is the one place the passthrough work changes behaviour with
+`preparedMessage: false` — a conflicted squash used to commit and now refuses.
+Committing conflict markers was a bug, not behaviour worth preserving.
 
 ## Consequences
 
-- Merge, cherry-pick and revert stop being refused; `merge --squash` stops being
-  overwritten. Rebase and bisect are unchanged: there the correct tool is
-  `git rebase --continue`, and an autogit commit would leave the sequencer's
-  todo list unadvanced.
+- Merge, single-commit cherry-pick and revert stop being refused;
+  `merge --squash` stops being overwritten. Rebase, bisect and multi-commit
+  sequences keep refusing, all for the same reason: only `--continue` can
+  advance a todo list, and a commit from autogit would not.
 - `Repo.CheckState` is gone, replaced by `Repo.State` returning a typed
   `git.State`. The block-or-pass policy moved into `internal/app`, where the
   configuration that governs it already lives.
-- `preparedMessage: false` reproduces the old behaviour byte for byte, including
-  the old refusals. It is settable in a repository `.autogit.json`: it changes
-  only which text a commit carries, which is the same class of decision as
-  `preset`.
+- `preparedMessage: false` reproduces the old behaviour, including the old
+  refusals, with the single exception noted above. It is settable in a
+  repository `.autogit.json`: it changes only which text a commit carries, which
+  is the same class of decision as `preset`. Nothing that guards the working
+  tree hangs off it.
 - A protected branch still needs `--force`. A merge into `main` is exactly the
   case the protection exists for.

@@ -36,12 +36,15 @@ generation that failed is an error, not a reason to reach for git's message.
 
 A multi-step git operation the working tree is in the middle of, read from the
 git directory by `Repo.State` and typed as a `git.Operation`: merge, squash
-merge, cherry-pick, revert, rebase, bisect, and `prepared` for a message whose
-operation left no ref to name it.
+merge, cherry-pick, revert, rebase, bisect, a multi-commit cherry-pick or revert
+sequence, and `prepared` for a message whose operation left no ref to name it.
 
 The state itself carries no policy. Two questions are asked of it separately:
 `Blocked()` — may autogit commit here at all? — and `HasPreparedMessage()` —
-has git already written what this commit should say? A rebase blocks because
-only `git rebase --continue` can advance the sequencer's todo list. A squash
-merge blocks nothing: it leaves no ref behind and git considers the tree
-ordinary.
+has git already written what this commit should say? A rebase and a multi-commit
+sequence block because only `--continue` can advance a todo list. A squash merge
+blocks nothing: it leaves no ref behind and git considers the tree ordinary.
+
+Refusing to commit over open conflicts is not part of this. That check reads the
+index, applies to every commit, and is deliberately not something the
+configuration can switch off.

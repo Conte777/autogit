@@ -67,16 +67,16 @@ func (a *App) Commit(ctx context.Context, req CommitRequest) (CommitResult, erro
 		return CommitResult{}, err
 	}
 
-	if op != git.OpNone {
-		if req.Preview {
-			return CommitResult{Message: prepared, Branch: branch.Name, Preview: true, Prepared: op}, nil
-		}
+	if op != git.OpNone && req.Preview {
+		return CommitResult{Message: prepared, Branch: branch.Name, Preview: true, Prepared: op}, nil
+	}
+	if !req.Preview {
+		// Never gated on preparedMessage: a conflicted `merge --squash` blocks
+		// nothing, so without this `--all` would stage the markers whatever the
+		// configuration says.
 		if conflictErr := a.requireResolved(ctx); conflictErr != nil {
 			return CommitResult{}, conflictErr
 		}
-	}
-
-	if !req.Preview {
 		if protErr := a.checkProtected(branch, req); protErr != nil {
 			return CommitResult{}, protErr
 		}
@@ -139,8 +139,8 @@ func (a *App) preparedMessage(ctx context.Context, st git.State) (string, git.Op
 	return msg, st.Op
 }
 
-// requireResolved refuses a passthrough commit while conflicts are open. It
-// runs before staging on purpose: `--all` would otherwise commit the markers.
+// requireResolved refuses to commit while conflicts are open. It runs before
+// staging on purpose: `--all` would otherwise commit the markers.
 func (a *App) requireResolved(ctx context.Context) error {
 	unmerged, err := a.Repo.Unmerged(ctx)
 	if err != nil {

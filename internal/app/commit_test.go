@@ -382,6 +382,26 @@ func TestPreparedMessageOffRestoresTheOldBehaviour(t *testing.T) {
 		}
 	})
 
+	// A conflicted `merge --squash` blocks nothing, so with passthrough off the
+	// conflict guard is the only thing standing between `--all` and a commit
+	// full of markers. It must not be reachable from a repository config.
+	t.Run("conflicts are still refused", func(t *testing.T) {
+		e := newEnv(t, "feat: whatever")
+		e.cfg.PreparedMessage = false
+		e.diverge()
+		_ = tryGit(e.dir, "merge", "--squash", "side")
+		before := e.head()
+
+		_, err := e.app().Commit(context.Background(), app.CommitRequest{Stage: app.StageAll})
+		var state *git.StateError
+		if !errors.As(err, &state) {
+			t.Fatalf("err = %v, want a *git.StateError", err)
+		}
+		if e.head() != before {
+			t.Fatal("conflict markers were committed")
+		}
+	})
+
 	t.Run("squash generates", func(t *testing.T) {
 		e := newEnv(t, "feat: add the extra file")
 		e.cfg.PreparedMessage = false

@@ -75,9 +75,13 @@ so running it would burn every attempt and then reject a merge you had already
 resolved correctly.
 
 Conflicts must be resolved and staged first — `--all` against a half-resolved
-merge would otherwise commit the conflict markers. A rebase and a bisect are
-still refused outright: there the tool is `git rebase --continue`, and a commit
-from autogit would leave the sequencer's todo list unadvanced.
+merge would otherwise commit the conflict markers. That refusal is
+unconditional and does not depend on `preparedMessage`.
+
+A rebase, a bisect and a multi-commit `cherry-pick A B C` are still refused
+outright: there the tool is `--continue`, and a commit from autogit would leave
+the todo list unadvanced and quietly drop the remaining steps. A single-commit
+pick or revert has no such list and goes through.
 
 Set `"preparedMessage": false` to generate a message in these states instead.
 

@@ -238,6 +238,79 @@ func TestCleanNoCommitPickAndRevert(t *testing.T) {
 	}
 }
 
+// A cherry-picked MERGE_MSG is the original author's whole message, so a body
+// line starting with '#' is content, not commentary. Stripping every comment
+// would delete it — the mistake `Repo.Commit` already avoids with
+// --cleanup=whitespace.
+func TestPreparedMessageKeepsHashBodyLines(t *testing.T) {
+	dir := newRepo(t)
+	write(t, dir, "a.txt", "one\n")
+	runGit(t, dir, "add", ".")
+	runGit(t, dir, "commit", "-m", "init")
+
+	runGit(t, dir, "switch", "-c", "hashy")
+	write(t, dir, "b.txt", "b\n")
+	runGit(t, dir, "add", ".")
+	runGit(t, dir, "commit", "-m", "feat: add b\n\nRefs:\n#123 the ticket\n#456 another")
+
+	runGit(t, dir, "switch", "main")
+	runGit(t, dir, "cherry-pick", "-n", "hashy")
+
+	msg, err := open(t, dir).PreparedMessage(context.Background(), OpPrepared)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "feat: add b\n\nRefs:\n#123 the ticket\n#456 another"
+	if msg != want {
+		t.Fatalf("PreparedMessage() = %q, want %q", msg, want)
+	}
+}
+
+func TestDropConflictBlock(t *testing.T) {
+	for _, tc := range []struct{ name, in, want string }{
+		{"merge", "Merge branch 'x'\n\n# Conflicts:\n#\ta.txt\n", "Merge branch 'x'"},
+		{"no block", "feat: a\n\nbody\n", "feat: a\n\nbody"},
+		{"hash body kept", "feat: a\n\n#123 ref\n", "feat: a\n\n#123 ref"},
+		{"other comment char", "subject\n\n; Conflicts:\n;\ta.txt\n", "subject"},
+		{"body then block", "feat: a\n\n#1 keep\n\n# Conflicts:\n#\ta.txt\n", "feat: a\n\n#1 keep"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := dropConflictBlock(tc.in); got != tc.want {
+				t.Fatalf("dropConflictBlock(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
+// A multi-commit cherry-pick runs through the sequencer, and only --continue
+// advances its todo list. Committing one step would drop the rest in silence.
+func TestStateBlocksAMultiCommitSequence(t *testing.T) {
+	dir := diverged(t)
+	runGit(t, dir, "switch", "-c", "multi", "main")
+	tryGit(dir, "cherry-pick", "extra", "side")
+
+	st := state(t, dir)
+	if st.Op != OpSequence {
+		t.Fatalf("State() during a multi-commit pick = %+v, want OpSequence", st)
+	}
+	if st.HasPreparedMessage() {
+		t.Error("HasPreparedMessage() = true: one step would be committed and the rest dropped")
+	}
+	err := st.Blocked()
+	if err == nil || !strings.Contains(err.Error(), "multi-commit") {
+		t.Fatalf("Blocked() = %v, want a sequencer StateError", err)
+	}
+}
+
+// A single pick never touches the sequencer, so it must stay committable.
+func TestStateLeavesSingleCommitPicksAlone(t *testing.T) {
+	dir := diverged(t)
+	tryGit(dir, "cherry-pick", "side")
+	if st := state(t, dir); st.Op != OpCherryPick {
+		t.Fatalf("State() during a single conflicted pick = %+v, want OpCherryPick", st)
+	}
+}
+
 // A commit consumes MERGE_MSG and SQUASH_MSG, which is what keeps the bare
 // MERGE_MSG fallback from reusing one message forever.
 func TestCommittingClearsThePreparedMessage(t *testing.T) {

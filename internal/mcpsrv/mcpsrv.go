@@ -81,20 +81,25 @@ func (s *Server) commit(ctx context.Context, _ *mcp.CallToolRequest, in CommitIn
 			return "", err
 		}
 		if result.Preview {
-			return result.Message + preparedNote(result.Prepared), nil
+			return result.Message + preparedNote(result.Prepared, true), nil
 		}
 		return fmt.Sprintf("committed %s\n\n%s%s",
-			result.ShortHash, result.Message, preparedNote(result.Prepared)), nil
+			result.ShortHash, result.Message, preparedNote(result.Prepared, false)), nil
 	})
 }
 
 // preparedNote labels a message git wrote itself, so an agent does not read an
-// unvalidated `Merge branch 'x'` as a broken generation.
-func preparedNote(op git.Operation) string {
-	if op == git.OpNone {
+// unvalidated `Merge branch 'x'` as a broken generation. The preview wording
+// must not claim a commit that has not happened.
+func preparedNote(op git.Operation, preview bool) string {
+	switch {
+	case op == git.OpNone:
 		return ""
+	case preview:
+		return fmt.Sprintf("\n\n(git's own %s message; it would be used verbatim, not generated)", op)
+	default:
+		return fmt.Sprintf("\n\n(git's own %s message, committed verbatim: no message was generated)", op)
 	}
-	return fmt.Sprintf("\n\n(git's own %s message, committed verbatim: no message was generated)", op)
 }
 
 func (s *Server) branch(ctx context.Context, _ *mcp.CallToolRequest, in BranchInput) (

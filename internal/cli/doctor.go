@@ -30,10 +30,11 @@ func doctorCmd(g *globals, out *ui.UI) *cobra.Command {
 
 func runDoctor(ctx context.Context, g *globals, out *ui.UI) error {
 	repoRoot := ""
-	if repo, err := openRepo(ctx, g.repo, "cli"); err == nil {
+	var repo *git.Repo
+	if opened, err := openRepo(ctx, g.repo, "cli"); err == nil {
+		repo = opened
 		repoRoot = repo.Root()
 		out.Print("repository   %s", repoRoot)
-		reportState(ctx, out, repo)
 		reportBranch(ctx, out, repo)
 	} else {
 		out.Print("repository   none (%v)", err)
@@ -53,6 +54,12 @@ func runDoctor(ctx context.Context, g *globals, out *ui.UI) error {
 		out.Print("config       %s", strings.Join(sources, ", "))
 	}
 
+	// After the config, because whether a prepared message will actually be
+	// used is a configuration answer, not a repository one.
+	if repo != nil {
+		reportState(ctx, out, repo, cfg.PreparedMessage)
+	}
+
 	if _, err := cfg.ResolvePreset(); err != nil {
 		out.Print("preset       BROKEN: %v", err)
 		return err
@@ -63,11 +70,20 @@ func runDoctor(ctx context.Context, g *globals, out *ui.UI) error {
 	return checkProvider(ctx, cfg, out)
 }
 
-func reportState(ctx context.Context, out *ui.UI, repo *git.Repo) {
+func reportState(ctx context.Context, out *ui.UI, repo *git.Repo, passthrough bool) {
 	st, err := repo.State(ctx)
 	switch {
 	case err != nil:
 		out.Print("state        unknown: %v", err)
+	case !passthrough && st.HasPreparedMessage():
+		// With passthrough off, a merge is refused and a squash is generated
+		// over, so neither Blocked() nor the prepared message tells the truth
+		// on its own.
+		if blocked := st.Blocked(); blocked != nil {
+			out.Print("state        BLOCKED: %v", blocked)
+		} else {
+			out.Print("state        %s in progress; preparedMessage is off, a message will be generated", st.Op)
+		}
 	case st.Blocked() != nil:
 		out.Print("state        BLOCKED: %v", st.Blocked())
 	case st.Op == git.OpPrepared:
