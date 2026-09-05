@@ -16,15 +16,23 @@ import (
 
 // App holds everything one operation needs.
 type App struct {
-	Repo     *git.Repo
-	Config   *config.Config
-	Preset   preset.Preset
-	Provider gen.Provider
-	// Prompt is the one place that says whether there is anybody to ask.
-	// Required: a nil Prompt is a wiring bug, not a quiet no.
-	Prompt ui.Prompter
-	// PresetName selects the embedded prompt when the preset points at no file.
-	PresetName string
+	repo     *git.Repo
+	cfg      *config.Config
+	preset   preset.Preset
+	provider gen.Provider
+	// prompt is the one place that says whether there is anybody to ask.
+	// Required: a nil prompt is a wiring bug, not a quiet no.
+	prompt ui.Prompter
+}
+
+// New assembles an App. The preset is resolved here, so a broken one is a
+// construction error rather than a surprise halfway through a run.
+func New(repo *git.Repo, cfg *config.Config, prov gen.Provider, prompter ui.Prompter) (*App, error) {
+	p, err := cfg.ResolvePreset()
+	if err != nil {
+		return nil, err
+	}
+	return &App{repo: repo, cfg: cfg, preset: p, provider: prov, prompt: prompter}, nil
 }
 
 // ErrNothingToCommit means the index is empty and nothing was asked to fill it.
@@ -44,11 +52,11 @@ func (e *ProtectedBranchError) Error() string {
 var ErrCanceled = errors.New("cancelled")
 
 func (a *App) generate(ctx context.Context, req gen.Request) (gen.Result, error) {
-	if timeout := a.Config.Timeout.Duration(); timeout > 0 {
+	if timeout := a.cfg.Timeout.Duration(); timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
 	}
-	req.Attempts = a.Config.Attempts
-	return gen.Generate(ctx, a.Provider, req)
+	req.Attempts = a.cfg.Attempts
+	return gen.Generate(ctx, a.provider, req)
 }

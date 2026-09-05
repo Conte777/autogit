@@ -19,7 +19,15 @@ import (
 type Preset struct {
 	Commit CommitFormat `json:"commit"`
 	Branch BranchFormat `json:"branch"`
+
+	// name stays unexported: this type is both the source of `presets.<name>`
+	// in the generated schema and the target of a strict decode of the
+	// untrusted repository config.
+	name string
 }
+
+// Name is the preset's own name, which selects its embedded prompts.
+func (p Preset) Name() string { return p.name }
 
 // CommitFormat describes both the commit prompt and its checks.
 type CommitFormat struct {
@@ -153,11 +161,16 @@ func Builtin(name string) (Preset, bool) {
 	if !ok {
 		return Preset{}, false
 	}
+	p.name = name
 	p.Commit.Types = slices.Clone(p.Commit.Types)
 	p.Commit.Scope.Values = slices.Clone(p.Commit.Scope.Values)
 	p.Branch.Types = slices.Clone(p.Branch.Types)
 	return p, true
 }
+
+// Named is the empty preset under a name: the starting point for one that
+// exists only in config layers.
+func Named(name string) Preset { return Preset{name: name} }
 
 // EmbeddedPrompt returns the built-in prompt text for an operation.
 func EmbeddedPrompt(preset, op string) (string, error) {
@@ -170,27 +183,27 @@ func EmbeddedPrompt(preset, op string) (string, error) {
 
 // CommitPrompt loads the commit prompt, from disk when the preset points at a
 // file and from the embedded assets otherwise.
-func (p Preset) CommitPrompt(name string) (*prompt.Prompt, error) {
+func (p Preset) CommitPrompt() (*prompt.Prompt, error) {
 	if p.Commit.Prompt != "" {
 		return prompt.Load(p.Commit.Prompt, prompt.CommitData{})
 	}
-	src, err := EmbeddedPrompt(name, "commit")
+	src, err := EmbeddedPrompt(p.name, "commit")
 	if err != nil {
 		return nil, err
 	}
-	return prompt.Parse(name+"/commit.md", src, prompt.CommitData{})
+	return prompt.Parse(p.name+"/commit.md", src, prompt.CommitData{})
 }
 
 // BranchPrompt loads the branch prompt.
-func (p Preset) BranchPrompt(name string) (*prompt.Prompt, error) {
+func (p Preset) BranchPrompt() (*prompt.Prompt, error) {
 	if p.Branch.Prompt != "" {
 		return prompt.Load(p.Branch.Prompt, prompt.BranchData{})
 	}
-	src, err := EmbeddedPrompt(name, "branch")
+	src, err := EmbeddedPrompt(p.name, "branch")
 	if err != nil {
 		return nil, err
 	}
-	return prompt.Parse(name+"/branch.md", src, prompt.BranchData{})
+	return prompt.Parse(p.name+"/branch.md", src, prompt.BranchData{})
 }
 
 // CommitRules turns the format into the checker gen.Generate will use.

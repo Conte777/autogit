@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -40,7 +39,11 @@ func runDoctor(ctx context.Context, g *globals, out *ui.UI) error {
 		out.Print("repository   none (%v)", err)
 	}
 
-	cfg, err := config.Load(config.Options{RepoRoot: repoRoot, GlobalPath: g.confPath})
+	cfg, err := config.Load(config.Options{
+		RepoRoot:   repoRoot,
+		GlobalPath: g.confPath,
+		Env:        g.lookupEnv,
+	})
 	if err != nil {
 		out.Print("config       BROKEN: %v", err)
 		return err
@@ -67,7 +70,7 @@ func runDoctor(ctx context.Context, g *globals, out *ui.UI) error {
 	out.Print("preset       %s", cfg.Preset)
 	out.Print("provider     %s (model %s)", cfg.Provider, cfg.Model())
 
-	return checkProvider(ctx, cfg, out)
+	return checkProvider(ctx, cfg, g.lookupEnv, out)
 }
 
 func reportState(ctx context.Context, out *ui.UI, repo *git.Repo, passthrough bool) {
@@ -110,8 +113,8 @@ func reportBranch(ctx context.Context, out *ui.UI, repo *git.Repo) {
 
 // checkProvider does a real round trip. A provider that cannot answer is the
 // single most common failure, and the fix is usually to switch to another one.
-func checkProvider(ctx context.Context, cfg *config.Config, out *ui.UI) error {
-	p, err := provider.Build(cfg, os.LookupEnv, nil)
+func checkProvider(ctx context.Context, cfg *config.Config, env func(string) (string, bool), out *ui.UI) error {
+	p, err := provider.Build(cfg, env, nil)
 	if err != nil {
 		out.Print("liveness     UNAVAILABLE: %v", err)
 		out.Print("             %s", switchHint(cfg.Provider))

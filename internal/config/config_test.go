@@ -271,6 +271,40 @@ func TestUnknownKeyInsidePresetOverride(t *testing.T) {
 	}
 }
 
+// The preset name selects a file inside the embedded prompt assets, so an
+// untrusted repository config must not be able to spell it.
+func TestPresetNameIsNotAConfigKey(t *testing.T) {
+	repo := t.TempDir()
+	writeFile(t, repo, ".autogit.json", `{"presets":{"conventional":{"name":"../../etc"}}}`)
+
+	cfg, err := config.Load(config.Options{RepoRoot: repo, Env: envOf(nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := cfg.ResolvePreset()
+	if err == nil {
+		t.Fatalf("a preset override named itself %q", p.Name())
+	}
+}
+
+func TestResolvedPresetKnowsItsName(t *testing.T) {
+	dir := t.TempDir()
+	global := writeFile(t, dir, "config.json",
+		`{"preset":"house","presets":{"house":{"commit":{"body":{"mode":"off"},"scope":{"mode":"off"}}}}}`)
+
+	cfg, err := config.Load(config.Options{GlobalPath: global, Env: envOf(nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := cfg.ResolvePreset()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Name() != "house" {
+		t.Errorf("Name() = %q, want the preset the layer defined", p.Name())
+	}
+}
+
 func TestBadEnvValues(t *testing.T) {
 	for _, kv := range []map[string]string{
 		{"AUTOGIT_ATTEMPTS": "zero"},

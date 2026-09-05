@@ -152,6 +152,7 @@ func (c *Config) ResolvePreset() (preset.Preset, error) {
 				fmt.Errorf("unknown preset %q; built in: %v", c.Preset, preset.Names()),
 			}
 		}
+		p = preset.Named(c.Preset)
 	}
 
 	for _, layer := range c.presetLayers {

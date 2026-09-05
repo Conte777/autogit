@@ -38,7 +38,7 @@ func runHookCommand(ctx context.Context, g *globals, c hook.Command) (string, er
 
 	switch c.Kind {
 	case hook.KindBranch:
-		result, err := a.Branch(ctx, app.ParseBranchArgs(c.Args, a.Preset.Branch))
+		result, err := a.Branch(ctx, a.ParseBranchArgs(c.Args))
 		if err != nil {
 			return "", err
 		}

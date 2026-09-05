@@ -164,9 +164,9 @@ func TestBranchCustomNameTemplate(t *testing.T) {
 	e := newEnv(t)
 	e.commitFile("a.txt", "one\n", "init")
 
-	a := e.app()
-	a.Preset.Branch.Name = "{{.Ticket}}-{{.Slug}}"
-	got, err := a.Branch(context.Background(), app.BranchRequest{
+	e.repoConfig(`{"presets": {"conventional": {"branch": {"name": "{{.Ticket}}-{{.Slug}}"}}}}`)
+
+	got, err := e.app().Branch(context.Background(), app.BranchRequest{
 		Ticket:      "CUS-9",
 		Description: "add user auth",
 	})

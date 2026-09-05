@@ -36,6 +36,12 @@ func ParseBranchArgs(args []string, format preset.BranchFormat) BranchRequest {
 	return BranchRequest{Description: strings.Join(args, " ")}
 }
 
+// ParseBranchArgs splits `branch` arguments against this App's own preset, so
+// a caller that no longer holds the preset can still ask.
+func (a *App) ParseBranchArgs(args []string) BranchRequest {
+	return ParseBranchArgs(args, a.preset.Branch)
+}
+
 // ticketMatches reports whether arg is exactly what pattern describes. A preset
 // that declares no pattern describes nothing: there a ticket can only arrive
 // named, never guessed out of free text.
@@ -54,7 +60,7 @@ var ErrNoBranchInput = errors.New("no description and no changes to describe")
 
 // Branch creates and switches to <prefix>/<slug>.
 func (a *App) Branch(ctx context.Context, req BranchRequest) (BranchResult, error) {
-	st, stateErr := a.Repo.State(ctx)
+	st, stateErr := a.repo.State(ctx)
 	if stateErr != nil {
 		return BranchResult{}, stateErr
 	}
@@ -62,7 +68,7 @@ func (a *App) Branch(ctx context.Context, req BranchRequest) (BranchResult, erro
 		return BranchResult{}, blocked
 	}
 
-	format := a.Preset.Branch
+	format := a.preset.Branch
 	ticket := strings.ToUpper(strings.TrimSpace(req.Ticket))
 	if ticket != "" && format.TicketPattern != "" && !ticketMatches(ticket, format.TicketPattern) {
 		return BranchResult{}, fmt.Errorf("%q does not look like a ticket id for this preset", req.Ticket)
@@ -90,7 +96,7 @@ func (a *App) Branch(ctx context.Context, req BranchRequest) (BranchResult, erro
 		slug = validate.Slugify(desc, format.MaxWords)
 
 	default:
-		diff, err := a.Repo.WorktreeDiff(ctx, a.diffOptions())
+		diff, err := a.repo.WorktreeDiff(ctx, a.diffOptions())
 		if err != nil {
 			return BranchResult{}, err
 		}
@@ -125,10 +131,10 @@ func (a *App) Branch(ctx context.Context, req BranchRequest) (BranchResult, erro
 	if err != nil {
 		return BranchResult{}, err
 	}
-	if a.Repo.BranchExists(ctx, name) {
+	if a.repo.BranchExists(ctx, name) {
 		return BranchResult{}, fmt.Errorf("branch %q already exists", name)
 	}
-	if err := a.Repo.CreateBranch(ctx, name); err != nil {
+	if err := a.repo.CreateBranch(ctx, name); err != nil {
 		return BranchResult{}, err
 	}
 	return BranchResult{Name: name, Attempts: attempts}, nil
@@ -141,7 +147,7 @@ type branchAnswer struct {
 }
 
 func (a *App) askBranch(ctx context.Context, data prompt.BranchData) (branchAnswer, error) {
-	tmpl, err := a.Preset.BranchPrompt(a.PresetName)
+	tmpl, err := a.preset.BranchPrompt()
 	if err != nil {
 		return branchAnswer{}, err
 	}
@@ -153,7 +159,7 @@ func (a *App) askBranch(ctx context.Context, data prompt.BranchData) (branchAnsw
 	v := branchValidator{
 		needType: data.NeedType,
 		types:    data.Types,
-		slug:     validate.SlugRules{MaxLen: a.Preset.Branch.MaxSlugLen},
+		slug:     validate.SlugRules{MaxLen: a.preset.Branch.MaxSlugLen},
 	}
 	result, err := a.generate(ctx, gen.Request{System: system, Prompt: user, Validator: v})
 	if err != nil {

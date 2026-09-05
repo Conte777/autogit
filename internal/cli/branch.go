@@ -26,7 +26,7 @@ func branchCmd(g *globals, out *ui.UI) *cobra.Command {
 			}
 			req := app.BranchRequest{Ticket: ticket, Description: strings.Join(args, " ")}
 			if ticket == "" {
-				req = app.ParseBranchArgs(args, a.Preset.Branch)
+				req = a.ParseBranchArgs(args)
 			}
 			result, err := a.Branch(cmd.Context(), req)
 			if err != nil {
