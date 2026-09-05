@@ -1,5 +1,7 @@
 package prompt
 
+import "github.com/Conte777/autogit/internal/validate"
+
 // CommitData is the template contract of a commit prompt. Every field a
 // template may reference lives here; anything else fails at load time.
 type CommitData struct {
@@ -12,7 +14,7 @@ type CommitData struct {
 	Types         []string
 	MaxSubject    int
 	Scopes        []string // history vocabulary; empty means "say nothing about scopes"
-	ScopeMode     string   // off | suggest | whitelist
+	ScopeMode     validate.ScopeMode
 	WantBody      bool
 	AllowFooters  bool
 }

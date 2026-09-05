@@ -1,11 +1,13 @@
 package preset_test
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/Conte777/autogit/internal/preset"
 	"github.com/Conte777/autogit/internal/prompt"
+	"github.com/Conte777/autogit/internal/validate"
 )
 
 func TestBuiltinPromptsCompileAndRender(t *testing.T) {
@@ -56,12 +58,12 @@ func commitCases(p preset.Preset) []prompt.CommitData {
 		AllowFooters: p.Commit.Footers,
 	}
 	var out []prompt.CommitData
-	for _, mode := range []string{"off", "suggest", "whitelist"} {
+	for _, mode := range []validate.ScopeMode{validate.ScopeOff, validate.ScopeSuggest, validate.ScopeWhitelist} {
 		for _, ticket := range []string{"", "CUS-42"} {
 			for _, body := range []bool{false, true} {
 				d := base
 				d.ScopeMode, d.Ticket, d.WantBody = mode, ticket, body
-				if mode != "off" {
+				if mode != validate.ScopeOff {
 					d.Scopes = []string{"api", "cli"}
 				}
 				out = append(out, d)
@@ -70,7 +72,7 @@ func commitCases(p preset.Preset) []prompt.CommitData {
 	}
 	// The suggest mode with no history must still render.
 	d := base
-	d.ScopeMode = "suggest"
+	d.ScopeMode = validate.ScopeSuggest
 	d.DiffTruncated = true
 	d.Detached = true
 	return append(out, d)
@@ -122,7 +124,7 @@ func TestConventionalPromptDropsRefsWithoutTicket(t *testing.T) {
 	p, _ := preset.Builtin("conventional")
 	commit, _ := p.CommitPrompt("conventional")
 
-	system, _, err := commit.Render(prompt.CommitData{AllowFooters: true, ScopeMode: "suggest"})
+	system, _, err := commit.Render(prompt.CommitData{AllowFooters: true, ScopeMode: validate.ScopeSuggest})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +138,7 @@ func TestConventionalPromptDropsRefsWithoutTicket(t *testing.T) {
 
 func TestCommitRules(t *testing.T) {
 	p, _ := preset.Builtin("ticket")
-	rules := p.Commit.CommitRules("add thing", nil)
+	rules := p.Commit.CommitRules("add thing", p.Commit.Scope.Resolve(nil))
 
 	if rules.AllowBody {
 		t.Error("ticket preset allows a body")
@@ -146,7 +148,7 @@ func TestCommitRules(t *testing.T) {
 	}
 
 	c, _ := preset.Builtin("conventional")
-	if !c.Commit.CommitRules("", nil).AllowBody {
+	if !c.Commit.CommitRules("", c.Commit.Scope.Resolve(nil)).AllowBody {
 		t.Error("conventional preset forbids a body")
 	}
 }
@@ -198,5 +200,68 @@ func TestBuiltinReturnsACopy(t *testing.T) {
 	b, _ := preset.Builtin("ticket")
 	if b.Commit.Types[0] == "mutated" {
 		t.Error("Builtin handed out the shared slice")
+	}
+}
+
+func TestScopePolicyResolve(t *testing.T) {
+	mined := []string{"api", "cli"}
+
+	tests := []struct {
+		name        string
+		policy      preset.ScopePolicy
+		needHistory bool
+		wantHint    []string
+		wantAllowed []string
+	}{
+		{
+			name:   "off keeps every scope out of the prompt and the rules",
+			policy: preset.ScopePolicy{Mode: validate.ScopeOff},
+		},
+		{
+			name:        "suggest offers history and enforces nothing",
+			policy:      preset.ScopePolicy{Mode: validate.ScopeSuggest},
+			needHistory: true,
+			wantHint:    mined,
+		},
+		{
+			name:     "suggest with configured values does not read history",
+			policy:   preset.ScopePolicy{Mode: validate.ScopeSuggest, Values: []string{"ui"}},
+			wantHint: []string{"ui"},
+		},
+		{
+			name:        "whitelist without values enforces what history produced",
+			policy:      preset.ScopePolicy{Mode: validate.ScopeWhitelist},
+			needHistory: true,
+			wantHint:    mined,
+			wantAllowed: mined,
+		},
+		{
+			name:        "whitelist with values enforces them",
+			policy:      preset.ScopePolicy{Mode: validate.ScopeWhitelist, Values: []string{"ui"}},
+			wantHint:    []string{"ui"},
+			wantAllowed: []string{"ui"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.policy.NeedsHistory(); got != tt.needHistory {
+				t.Errorf("NeedsHistory() = %v, want %v", got, tt.needHistory)
+			}
+			var available []string
+			if tt.needHistory {
+				available = mined
+			}
+			v := tt.policy.Resolve(available)
+			if v.Mode != tt.policy.Mode {
+				t.Errorf("Mode = %q, want %q", v.Mode, tt.policy.Mode)
+			}
+			if !slices.Equal(v.Hint, tt.wantHint) {
+				t.Errorf("Hint = %v, want %v", v.Hint, tt.wantHint)
+			}
+			if !slices.Equal(v.Allowed, tt.wantAllowed) {
+				t.Errorf("Allowed = %v, want %v", v.Allowed, tt.wantAllowed)
+			}
+		})
 	}
 }
