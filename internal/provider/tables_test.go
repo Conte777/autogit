@@ -17,20 +17,24 @@ func TestEveryDeclaredProviderIsWiredExactlyOnce(t *testing.T) {
 		if !slices.Contains(names, name) {
 			t.Errorf("dialects has %q, which config does not declare", name)
 		}
-		if _, both := processes[name]; both {
-			t.Errorf("%q is wired as both a dialect and a process", name)
+		if _, both := subprocesses[name]; both {
+			t.Errorf("%q is wired as both a dialect and a subprocess", name)
+		}
+		// resolve dereferences spec.HTTP; without one, Build panics.
+		if spec, ok := config.LookupProvider(name); ok && spec.HTTP == nil {
+			t.Errorf("dialect %q has no HTTP section in its spec", name)
 		}
 	}
-	for name := range processes {
+	for name := range subprocesses {
 		if !slices.Contains(names, name) {
-			t.Errorf("processes has %q, which config does not declare", name)
+			t.Errorf("subprocesses has %q, which config does not declare", name)
 		}
 	}
 
 	for _, name := range names {
 		_, isDialect := dialects[name]
-		_, isProcess := processes[name]
-		if !isDialect && !isProcess {
+		_, isSubprocess := subprocesses[name]
+		if !isDialect && !isSubprocess {
 			t.Errorf("config declares %q but nothing builds it", name)
 		}
 	}

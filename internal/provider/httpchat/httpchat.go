@@ -38,6 +38,12 @@ type Settings struct {
 	MaxTokens int
 }
 
+// Endpoint joins path onto BaseURL, which a user is free to write with or
+// without a trailing slash.
+func (s Settings) Endpoint(path string) string {
+	return strings.TrimRight(s.BaseURL, "/") + path
+}
+
 // Provider adapts a Chat into a gen.Provider.
 type Provider struct {
 	Chat       Chat

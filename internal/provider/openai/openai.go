@@ -33,7 +33,7 @@ func (c *Chat) Request(ctx context.Context, system string, history []httpchat.Me
 	if c.APIKey != "" {
 		headers["Authorization"] = "Bearer " + c.APIKey
 	}
-	return httpchat.JSONRequest(ctx, c.BaseURL+"/chat/completions", payload, headers)
+	return httpchat.JSONRequest(ctx, c.Endpoint("/chat/completions"), payload, headers)
 }
 
 func (c *Chat) Reply(body []byte) (string, error) {

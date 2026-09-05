@@ -30,7 +30,7 @@ func (c *Chat) Request(ctx context.Context, system string, history []httpchat.Me
 		"system":     system,
 		"messages":   messages,
 	}
-	return httpchat.JSONRequest(ctx, c.BaseURL+"/messages", payload, map[string]string{
+	return httpchat.JSONRequest(ctx, c.Endpoint("/messages"), payload, map[string]string{
 		"x-api-key":         c.APIKey,
 		"anthropic-version": apiVersion,
 	})

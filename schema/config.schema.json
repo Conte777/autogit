@@ -7,7 +7,13 @@
     },
     "provider": {
       "type": "string",
-      "description": "claude-cli, anthropic, openai or gemini; global config only"
+      "description": "which provider answers; global config only",
+      "enum": [
+        "anthropic",
+        "claude-cli",
+        "gemini",
+        "openai"
+      ]
     },
     "preset": {
       "type": "string",

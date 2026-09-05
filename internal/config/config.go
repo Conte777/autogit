@@ -17,7 +17,7 @@ const SchemaURL = "https://raw.githubusercontent.com/Conte777/autogit/main/schem
 // Config is the whole configuration surface, and the source of the JSON schema.
 type Config struct {
 	Schema            string                    `json:"$schema,omitempty" jsonschema:"URL of the JSON schema for this file"`
-	Provider          string                    `json:"provider,omitempty" jsonschema:"claude-cli, anthropic, openai or gemini; global config only"`
+	Provider          string                    `json:"provider,omitempty" jsonschema:"which provider answers; global config only"`
 	Preset            string                    `json:"preset,omitempty" jsonschema:"name of the commit/branch format"`
 	Confirm           bool                      `json:"confirm" jsonschema:"ask before committing; honoured only on an interactive terminal"`
 	Attempts          int                       `json:"attempts,omitempty" jsonschema:"how many times the model may be asked to fix its output"`

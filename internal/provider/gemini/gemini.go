@@ -38,7 +38,7 @@ func (c *Chat) Request(ctx context.Context, system string, history []httpchat.Me
 		payload["generationConfig"] = map[string]any{"maxOutputTokens": c.MaxTokens}
 	}
 
-	endpoint := fmt.Sprintf("%s/models/%s:generateContent", c.BaseURL, url.PathEscape(c.Model))
+	endpoint := c.Endpoint(fmt.Sprintf("/models/%s:generateContent", url.PathEscape(c.Model)))
 	// The key goes in a header, not the query string: a URL ends up in logs.
 	return httpchat.JSONRequest(ctx, endpoint, payload, map[string]string{"x-goog-api-key": c.APIKey})
 }

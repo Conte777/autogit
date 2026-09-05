@@ -101,10 +101,10 @@ CLI flags → `AUTOGIT_*` → `<repo>/.autogit.json` → `$AUTOGIT_CONFIG` or
     ]
   },
   "providers": {
-    "anthropic":  { "model": "claude-haiku-4-5", "maxTokens": 1024 },
+    "anthropic":  { "model": "claude-haiku-4-5", "baseUrl": "https://api.anthropic.com/v1", "maxTokens": 1024 },
     "claude-cli": { "binary": "claude", "model": "haiku" },
-    "openai":     { "model": "gpt-4.1-mini", "baseUrl": "https://api.openai.com/v1" },
-    "gemini":     { "model": "gemini-2.5-flash" }
+    "openai":     { "model": "gpt-4.1-mini", "baseUrl": "https://api.openai.com/v1", "maxTokens": 1024 },
+    "gemini":     { "model": "gemini-2.5-flash", "baseUrl": "https://generativelanguage.googleapis.com/v1beta", "maxTokens": 1024 }
   }
 }
 ```

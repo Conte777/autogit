@@ -1,14 +1,16 @@
 package config_test
 
 import (
+	"encoding/json"
 	"slices"
 	"testing"
 
 	"github.com/Conte777/autogit/internal/config"
 )
 
-// The defaults an adapter resolves against and the defaults Default() writes
-// into the config are the same declaration; this pins that they cannot drift.
+// A guard on Default() still being built from the table, and on the table
+// being filled in at all. That the defaults actually reach a provider is a
+// different claim, proved in internal/provider by resolving a blank section.
 func TestDefaultConfigCarriesTheDeclaredProviderDefaults(t *testing.T) {
 	defaults := config.Default().Providers
 	for _, spec := range config.ProviderSpecs() {
@@ -48,6 +50,28 @@ func TestEveryProviderSpecIsComplete(t *testing.T) {
 	// whose accessor is unexported.
 	if got := config.Default().Providers.ClaudeCLI.Binary; got == "" {
 		t.Errorf("claude-cli binary = %q after Default()", got)
+	}
+}
+
+// The schema is what an editor validates a config against, so a provider the
+// table declares must be spellable there and one it does not must not be.
+func TestSchemaEnumeratesTheProviderTable(t *testing.T) {
+	raw, err := config.Schema()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc struct {
+		Properties struct {
+			Provider struct {
+				Enum []string `json:"enum"`
+			} `json:"provider"`
+		} `json:"properties"`
+	}
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(doc.Properties.Provider.Enum, config.ProviderNames()) {
+		t.Errorf("schema enum = %v, want %v", doc.Properties.Provider.Enum, config.ProviderNames())
 	}
 }
 

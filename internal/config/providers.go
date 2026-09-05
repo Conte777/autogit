@@ -10,6 +10,7 @@ type ProviderSpec struct {
 	HTTP                       func(*Providers) *HTTPProvider
 	HTTPDefaults               HTTPProvider
 	KeyOptionalOnCustomBaseURL bool
+	MaxTokensRequired          bool
 	Model                      func(*Providers) *string
 
 	defaults func(*Providers)
@@ -25,7 +26,10 @@ var providerSpecs = []ProviderSpec{
 			BaseURL:   "https://api.anthropic.com/v1",
 			MaxTokens: 1024,
 		},
-		Model: func(p *Providers) *string { return &p.Anthropic.Model },
+		// The Messages API rejects a request without max_tokens; the other two
+		// dialects let the server pick when the field is absent.
+		MaxTokensRequired: true,
+		Model:             func(p *Providers) *string { return &p.Anthropic.Model },
 	},
 	{
 		Name:  "claude-cli",

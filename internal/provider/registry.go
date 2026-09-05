@@ -22,7 +22,7 @@ var dialects = map[string]func(httpchat.Settings) httpchat.Chat{
 	"openai":    func(s httpchat.Settings) httpchat.Chat { return &openai.Chat{Settings: s} },
 }
 
-var processes = map[string]func(config.Providers) gen.Provider{
+var subprocesses = map[string]func(config.Providers) gen.Provider{
 	"claude-cli": func(p config.Providers) gen.Provider {
 		return &claudecli.Provider{
 			Binary:    p.ClaudeCLI.Binary,
@@ -53,7 +53,7 @@ func resolve(spec config.ProviderSpec, p config.Providers, key string) (httpchat
 	if s.BaseURL == "" {
 		s.BaseURL = d.BaseURL
 	}
-	if s.MaxTokens <= 0 {
+	if s.MaxTokens <= 0 && spec.MaxTokensRequired {
 		s.MaxTokens = d.MaxTokens
 	}
 	if s.APIKey == "" && (!spec.KeyOptionalOnCustomBaseURL || s.BaseURL == d.BaseURL) {
@@ -69,7 +69,7 @@ func Build(cfg *config.Config, env func(string) (string, bool), client *http.Cli
 		return nil, fmt.Errorf("unknown provider %q; known: %v", cfg.Provider, Names())
 	}
 
-	if build, wired := processes[spec.Name]; wired {
+	if build, wired := subprocesses[spec.Name]; wired {
 		return build(cfg.Providers), nil
 	}
 

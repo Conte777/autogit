@@ -35,6 +35,14 @@ func Schema() ([]byte, error) {
 	s.Schema = "https://json-schema.org/draft/2020-12/schema"
 	s.Title = "autogit configuration"
 
+	// The list of providers comes from the table, not a struct tag: a name
+	// spelled in two places is the drift this schema exists to catch.
+	if p, ok := s.Properties["provider"]; ok {
+		for _, name := range ProviderNames() {
+			p.Enum = append(p.Enum, name)
+		}
+	}
+
 	out, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {
 		return nil, err
