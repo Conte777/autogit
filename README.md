@@ -15,8 +15,9 @@ your own API key is a one-line config change, not a rewrite.
 - **Four providers**: `claude-cli` (your existing Claude subscription, via the
   `claude` binary), `anthropic`, `openai` (also Ollama and LM Studio through
   `baseUrl`), `gemini`.
-- **Four surfaces**: the CLI, an MCP server for agents, a Claude Code
-  `UserPromptSubmit` hook, and an installer that wires the two together.
+- **Three surfaces**: the CLI, an MCP server for agents, and a Claude Code
+  `UserPromptSubmit` hook. An installer registers that hook and its slash
+  commands for you.
 - **Two built-in presets**: full Conventional Commits, and a single-line
   `TICKET: description` dialect. Eject either one and edit the prompts.
 
@@ -130,10 +131,10 @@ CLI flags → `AUTOGIT_*` → `<repo>/.autogit.json` → `$AUTOGIT_CONFIG` or
     ]
   },
   "providers": {
-    "anthropic":  { "model": "claude-haiku-4-5", "maxTokens": 1024 },
+    "anthropic":  { "model": "claude-haiku-4-5", "baseUrl": "https://api.anthropic.com/v1", "maxTokens": 1024 },
     "claude-cli": { "binary": "claude", "model": "haiku" },
-    "openai":     { "model": "gpt-4.1-mini", "baseUrl": "https://api.openai.com/v1" },
-    "gemini":     { "model": "gemini-2.5-flash" }
+    "openai":     { "model": "gpt-4.1-mini", "baseUrl": "https://api.openai.com/v1", "maxTokens": 1024 },
+    "gemini":     { "model": "gemini-2.5-flash", "baseUrl": "https://generativelanguage.googleapis.com/v1beta", "maxTokens": 1024 }
   }
 }
 ```

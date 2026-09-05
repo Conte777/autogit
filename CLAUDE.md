@@ -27,3 +27,23 @@ go run ./cmd/autogit schema | diff -u schema/config.schema.json -
 ## Repo etiquette
 
 Changes reach `main` through a pull request; `main` is protected. Commit messages follow Conventional Commits (the project's own default preset).
+
+**Code never lands on `main` as a direct commit.** A task that edits code runs in its own worktree and finishes as a pull request that has been reviewed on both axes, fixed, and squash-merged — the sequence is in `docs/agents/code-change-workflow.md`, and it is binding, not a suggestion.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues for `Conte777/autogit`, driven by the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Code changes
+
+The worktree, the gates, the PR, the two reviews, the merge. See `docs/agents/code-change-workflow.md`.
+
+### Triage labels
+
+The five canonical triage roles, each label string equal to its name. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.

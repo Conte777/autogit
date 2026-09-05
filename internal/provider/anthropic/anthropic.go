@@ -6,67 +6,37 @@ package anthropic
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 
-	"github.com/Conte777/autogit/internal/gen"
 	"github.com/Conte777/autogit/internal/provider/httpchat"
 )
 
-const (
-	defaultBaseURL = "https://api.anthropic.com/v1"
-	defaultModel   = "claude-haiku-4-5"
-	apiVersion     = "2023-06-01"
-)
+const apiVersion = "2023-06-01"
 
-// Config is the provider section of the config file plus the key from env.
-type Config struct {
-	APIKey    string
-	Model     string
-	BaseURL   string
-	MaxTokens int
-}
+// Chat is the Messages API dialect.
+type Chat struct{ httpchat.Settings }
 
-// New builds a provider, or fails when there is no key to use.
-func New(cfg Config, client *http.Client) (gen.Provider, error) {
-	if cfg.APIKey == "" {
-		return nil, errors.New("no API key: set ANTHROPIC_API_KEY")
-	}
-	if cfg.Model == "" {
-		cfg.Model = defaultModel
-	}
-	if cfg.BaseURL == "" {
-		cfg.BaseURL = defaultBaseURL
-	}
-	if cfg.MaxTokens <= 0 {
-		cfg.MaxTokens = 1024
-	}
-	return &httpchat.Provider{Chat: &chat{cfg: cfg}, Client: client}, nil
-}
+func (c *Chat) Name() string { return "anthropic" }
 
-type chat struct{ cfg Config }
-
-func (c *chat) Name() string { return "anthropic" }
-
-func (c *chat) Request(ctx context.Context, system string, history []httpchat.Message) (*http.Request, error) {
+func (c *Chat) Request(ctx context.Context, system string, history []httpchat.Message) (*http.Request, error) {
 	messages := make([]map[string]any, 0, len(history))
 	for _, m := range history {
 		messages = append(messages, map[string]any{"role": m.Role, "content": m.Text})
 	}
 	payload := map[string]any{
-		"model":      c.cfg.Model,
-		"max_tokens": c.cfg.MaxTokens,
+		"model":      c.Model,
+		"max_tokens": c.MaxTokens,
 		"system":     system,
 		"messages":   messages,
 	}
-	return httpchat.JSONRequest(ctx, c.cfg.BaseURL+"/messages", payload, map[string]string{
-		"x-api-key":         c.cfg.APIKey,
+	return httpchat.JSONRequest(ctx, c.Endpoint("/messages"), payload, map[string]string{
+		"x-api-key":         c.APIKey,
 		"anthropic-version": apiVersion,
 	})
 }
 
-func (c *chat) Reply(body []byte) (string, error) {
+func (c *Chat) Reply(body []byte) (string, error) {
 	var resp struct {
 		Content []struct {
 			Type string `json:"type"`

@@ -17,7 +17,7 @@ const SchemaURL = "https://raw.githubusercontent.com/Conte777/autogit/main/schem
 // Config is the whole configuration surface, and the source of the JSON schema.
 type Config struct {
 	Schema            string                    `json:"$schema,omitempty" jsonschema:"URL of the JSON schema for this file"`
-	Provider          string                    `json:"provider,omitempty" jsonschema:"claude-cli, anthropic, openai or gemini; global config only"`
+	Provider          string                    `json:"provider,omitempty" jsonschema:"which provider answers; global config only"`
 	Preset            string                    `json:"preset,omitempty" jsonschema:"name of the commit/branch format"`
 	Confirm           bool                      `json:"confirm" jsonschema:"ask before committing; honoured only on an interactive terminal"`
 	PreparedMessage   bool                      `json:"preparedMessage" jsonschema:"commit the message git prepared for a merge, squash merge, cherry-pick or revert instead of generating one"`
@@ -133,12 +133,7 @@ func Default() Config {
 				":(exclude)yarn.lock",
 			},
 		},
-		Providers: Providers{
-			Anthropic: HTTPProvider{Model: "claude-haiku-4-5", MaxTokens: 1024},
-			ClaudeCLI: ClaudeCLI{Binary: "claude", Model: "haiku"},
-			OpenAI:    HTTPProvider{Model: "gpt-4.1-mini", BaseURL: "https://api.openai.com/v1", MaxTokens: 1024},
-			Gemini:    HTTPProvider{Model: "gemini-2.5-flash", MaxTokens: 1024},
-		},
+		Providers: defaultProviders(),
 	}
 }
 

@@ -129,6 +129,9 @@ func (r *Repo) run(ctx context.Context, timeout time.Duration, stdin string, arg
 func (r *Repo) env() []string {
 	// LC_ALL pins git's messages and porcelain wording to English: everything
 	// below parses git output, and the user's locale must not change it.
+	// GIT_DIR is inherited too: ADR-0001 binds autogit to behave as the user's
+	// own git does, and `git commit` under GIT_DIR=~/.dotfiles commits there.
+	// Isolating from it is a test concern — see UnsetRepoLocation.
 	env := append(os.Environ(), "LC_ALL=C", "LANG=C")
 	if !r.opts.Interactive {
 		env = append(env, "GIT_TERMINAL_PROMPT=0")

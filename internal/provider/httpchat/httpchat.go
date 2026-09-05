@@ -29,6 +29,21 @@ type Chat interface {
 	Reply(body []byte) (string, error)
 }
 
+// Settings is what every HTTP dialect needs to address its endpoint. The
+// blanks are already filled: a dialect never falls back to anything itself.
+type Settings struct {
+	APIKey    string
+	Model     string
+	BaseURL   string
+	MaxTokens int
+}
+
+// Endpoint joins path onto BaseURL, which a user is free to write with or
+// without a trailing slash.
+func (s Settings) Endpoint(path string) string {
+	return strings.TrimRight(s.BaseURL, "/") + path
+}
+
 // Provider adapts a Chat into a gen.Provider.
 type Provider struct {
 	Chat       Chat

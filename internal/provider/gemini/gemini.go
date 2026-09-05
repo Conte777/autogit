@@ -10,42 +10,15 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/Conte777/autogit/internal/gen"
 	"github.com/Conte777/autogit/internal/provider/httpchat"
 )
 
-const (
-	defaultBaseURL = "https://generativelanguage.googleapis.com/v1beta"
-	defaultModel   = "gemini-2.5-flash"
-)
+// Chat is the Generative Language dialect.
+type Chat struct{ httpchat.Settings }
 
-// Config is the provider section plus the key from the environment.
-type Config struct {
-	APIKey    string
-	Model     string
-	BaseURL   string
-	MaxTokens int
-}
+func (c *Chat) Name() string { return "gemini" }
 
-// New builds a provider.
-func New(cfg Config, client *http.Client) (gen.Provider, error) {
-	if cfg.APIKey == "" {
-		return nil, errors.New("no API key: set GEMINI_API_KEY")
-	}
-	if cfg.Model == "" {
-		cfg.Model = defaultModel
-	}
-	if cfg.BaseURL == "" {
-		cfg.BaseURL = defaultBaseURL
-	}
-	return &httpchat.Provider{Chat: &chat{cfg: cfg}, Client: client}, nil
-}
-
-type chat struct{ cfg Config }
-
-func (c *chat) Name() string { return "gemini" }
-
-func (c *chat) Request(ctx context.Context, system string, history []httpchat.Message) (*http.Request, error) {
+func (c *Chat) Request(ctx context.Context, system string, history []httpchat.Message) (*http.Request, error) {
 	contents := make([]map[string]any, 0, len(history))
 	for _, m := range history {
 		role := "user"
@@ -61,17 +34,16 @@ func (c *chat) Request(ctx context.Context, system string, history []httpchat.Me
 		"system_instruction": map[string]any{"parts": []map[string]string{{"text": system}}},
 		"contents":           contents,
 	}
-	if c.cfg.MaxTokens > 0 {
-		payload["generationConfig"] = map[string]any{"maxOutputTokens": c.cfg.MaxTokens}
+	if c.MaxTokens > 0 {
+		payload["generationConfig"] = map[string]any{"maxOutputTokens": c.MaxTokens}
 	}
 
-	endpoint := fmt.Sprintf("%s/models/%s:generateContent", strings.TrimRight(c.cfg.BaseURL, "/"),
-		url.PathEscape(c.cfg.Model))
+	endpoint := c.Endpoint(fmt.Sprintf("/models/%s:generateContent", url.PathEscape(c.Model)))
 	// The key goes in a header, not the query string: a URL ends up in logs.
-	return httpchat.JSONRequest(ctx, endpoint, payload, map[string]string{"x-goog-api-key": c.cfg.APIKey})
+	return httpchat.JSONRequest(ctx, endpoint, payload, map[string]string{"x-goog-api-key": c.APIKey})
 }
 
-func (c *chat) Reply(body []byte) (string, error) {
+func (c *Chat) Reply(body []byte) (string, error) {
 	var resp struct {
 		Candidates []struct {
 			Content struct {
