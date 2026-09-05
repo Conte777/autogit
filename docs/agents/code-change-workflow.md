@@ -1,6 +1,6 @@
 # Code-Change Workflow
 
-Binding for any agent session that changes code. Code never lands on `main` as a direct commit: it arrives as a reviewed, squash-merged pull request. `main` is protected.
+Binding for any agent session that changes code. Code never lands on `main` as a direct commit: it arrives as a reviewed, merged pull request. `main` is protected.
 
 Code means anything under `cmd/`, `internal/`, `assets/`, `schema/`, or the build and CI files that gate them (`.golangci.yml`, `.goreleaser.yaml`, `lefthook.yml`, `.github/workflows/`). A change touching only prose — README, `CONTEXT.md`, `docs/`, ADRs, issue bodies — is out of scope here and commits directly; it rejoins this workflow the moment it ships alongside code.
 
@@ -55,10 +55,10 @@ This step belongs to the task, not to the user. A green PR left unmerged, or a m
 Merge once CI is green:
 
 ```sh
-gh pr merge <n> --squash --delete-branch
+gh pr merge <n> --merge --delete-branch
 git worktree remove .claude/worktrees/<slug>
 ```
 
-Squash is what this repo's history uses — `feat: add post-install hook to remove gatekeeper quarantine (#1)`. `gh pr merge` fails its local cleanup when `main` is checked out in another worktree; the merge itself still happened, so confirm with `gh pr view <n> --json state` and finish the pruning by hand rather than retrying the merge.
+A merge commit is what this repo's history uses — `Merge pull request #10 from Conte777/feat/centralize-provider-config`. The branch's own commits stay in the history, so each one has to read as a commit, not as a checkpoint. `gh pr merge` fails its local cleanup when `main` is checked out in another worktree; the merge itself still happened, so confirm with `gh pr view <n> --json state` and finish the pruning by hand rather than retrying the merge.
 
 Only then resolve the ticket per the Resolve step in `issue-tracker.md`: the answer comment first, then `gh issue close`. Both, in that order, every time — an auto-close from the PR body is what `Refs #<n>` exists to prevent.

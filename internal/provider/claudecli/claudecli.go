@@ -23,6 +23,7 @@ import (
 const (
 	defaultBinary = "claude"
 	closeGrace    = 3 * time.Second
+	stderrGrace   = 3 * time.Second
 	// stdout is NDJSON; a single line can carry a whole assistant turn.
 	maxLine = 8 << 20
 )
@@ -86,9 +87,10 @@ func (p *Provider) Start(ctx context.Context, system string) (gen.Session, error
 	}
 
 	s := &session{
-		cmd:    cmd,
-		stdin:  stdin,
-		events: make(chan event, 64),
+		cmd:        cmd,
+		stdin:      stdin,
+		events:     make(chan event, 64),
+		stderrDone: make(chan struct{}),
 	}
 	go s.readStdout(stdout)
 	go s.readStderr(stderr)
@@ -121,8 +123,9 @@ type session struct {
 	stdin  io.WriteCloser
 	events chan event
 
-	stderrMu sync.Mutex
-	stderr   []string
+	stderrMu   sync.Mutex
+	stderr     []string
+	stderrDone chan struct{}
 
 	closeOnce sync.Once
 	closeErr  error
@@ -141,7 +144,7 @@ func (s *session) Send(ctx context.Context, text string) (string, error) {
 		return "", err
 	}
 	if _, err := s.stdin.Write(append(line, '\n')); err != nil {
-		return "", fmt.Errorf("claude stdin closed: %w%s", err, s.stderrTail())
+		return "", fmt.Errorf("claude stdin closed: %w%s", err, s.stderrReason())
 	}
 
 	var reply strings.Builder
@@ -152,7 +155,7 @@ func (s *session) Send(ctx context.Context, text string) (string, error) {
 			return "", ctx.Err()
 		case ev, ok := <-s.events:
 			if !ok {
-				return "", fmt.Errorf("claude exited before answering%s", s.stderrTail())
+				return "", fmt.Errorf("claude exited before answering%s", s.stderrReason())
 			}
 			switch ev.Type {
 			case "assistant":
@@ -194,6 +197,7 @@ func (s *session) readStdout(r io.Reader) {
 }
 
 func (s *session) readStderr(r io.Reader) {
+	defer close(s.stderrDone)
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, 8*1024), 1<<20)
 	for sc.Scan() {
@@ -208,6 +212,18 @@ func (s *session) note(line string) {
 	if len(s.stderr) > 20 {
 		s.stderr = s.stderr[len(s.stderr)-20:]
 	}
+}
+
+// stderrReason is stderrTail for the paths where the process is already gone.
+// The two pipes close independently, so the line that explains the death can
+// still be in flight when stdout hits EOF; without the wait the diagnostic is
+// lost to a race.
+func (s *session) stderrReason() string {
+	select {
+	case <-s.stderrDone:
+	case <-time.After(stderrGrace):
+	}
+	return s.stderrTail()
 }
 
 // stderrTail is the only diagnostic there is when the process dies.

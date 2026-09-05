@@ -28,7 +28,7 @@ go run ./cmd/autogit schema | diff -u schema/config.schema.json -
 
 Changes reach `main` through a pull request; `main` is protected. Commit messages follow Conventional Commits (the project's own default preset).
 
-**Code never lands on `main` as a direct commit.** A task that edits code runs in its own worktree and finishes as a pull request that has been reviewed on both axes, fixed, and squash-merged — the sequence is in `docs/agents/code-change-workflow.md`, and it is binding, not a suggestion.
+**Code never lands on `main` as a direct commit.** A task that edits code runs in its own worktree and finishes as a pull request that has been reviewed on both axes, fixed, and merged — the sequence is in `docs/agents/code-change-workflow.md`, and it is binding, not a suggestion.
 
 ## Agent skills
 
