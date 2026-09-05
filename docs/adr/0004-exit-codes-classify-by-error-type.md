@@ -16,10 +16,15 @@ belongs to the same sentence. Code 1 goes back to meaning a bug in autogit.
 **A git timeout is also 3, not 6.** The hanging case is a signing setup waiting
 on pinentry, which is local git, not the model. It exited 6 only because
 `git.run` wraps `ctx.Err()` and `ExitCode` reached through that wrapper for
-`context.DeadlineExceeded`. Nothing else produced a bare deadline: every
-provider failure, timeout included, already arrives as a `gen.ProviderError`
-(`gen.Generate` wraps both `start` and `send`), so code 6 still covers a model
-that timed out, and the sentinel branch was dead once the types were matched.
+`context.DeadlineExceeded`, so one sentinel branch answered for two unrelated
+layers.
+
+For code 6 to keep covering a model that timed out, `gen.Generate` now reports
+the context error as a `ProviderError` like every other transport failure; it
+used to return `ctx.Err()` bare, and the deleted sentinel branch was what caught
+it. That was the last producer of a bare deadline, and classification by type
+only holds because it is gone: a layer that lets a stdlib sentinel escape
+unwrapped is unclassifiable, and lands in code 1 by definition.
 
 **Cancellation outranks classification.** Ctrl-C is answered before any layer is
 identified, so it is 130 wherever it lands — inside a git call, inside a request
@@ -48,5 +53,6 @@ updated with them.
 Every code in that table is reachable from a test that builds the error the way
 its producing package builds it — `internal/cli/exit_test.go` runs a real
 failing command for the `ExecError` case rather than inventing a plausible
-inner error. A new error type added anywhere below `cli` must be classified in
+inner error, and code 2 is pinned from inside the package, since `usageError`
+is unexported. A new error type added anywhere below `cli` must be classified in
 `ExitCode` or it silently becomes an internal error.

@@ -16,8 +16,6 @@ import (
 	"github.com/Conte777/autogit/internal/ui"
 )
 
-// execFailure is what a git command that ran and refused leaves behind: the
-// error cmd.Run() returns, which is what git.run puts in ExecError.Err.
 func execFailure(t *testing.T) error {
 	t.Helper()
 	err := exec.Command("sh", "-c", "exit 1").Run()
@@ -59,12 +57,12 @@ func TestExitCode(t *testing.T) {
 		{"provider", &gen.ProviderError{Provider: "claude-cli", Op: "start", Err: errors.New("no binary")}, cli.ExitProvider},
 		{
 			"provider timed out",
-			&gen.ProviderError{Provider: "claude-cli", Op: "send", Err: fmt.Errorf("post: %w", context.DeadlineExceeded)},
+			&gen.ProviderError{Provider: "claude-cli", Op: "send", Err: context.DeadlineExceeded},
 			cli.ExitProvider,
 		},
 		{
 			"provider cancelled",
-			&gen.ProviderError{Provider: "claude-cli", Op: "send", Err: fmt.Errorf("post: %w", context.Canceled)},
+			&gen.ProviderError{Provider: "claude-cli", Op: "send", Err: context.Canceled},
 			cli.ExitCanceled,
 		},
 		{"validation", &gen.FailureError{Attempts: 3, Last: "nope"}, cli.ExitValidation},

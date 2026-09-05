@@ -48,9 +48,6 @@ func ExitCode(err error) int {
 		failErr *gen.FailureError
 	)
 
-	// Cancellation is answered before any classification: it says the process was
-	// interrupted, not which layer failed. It is also the one stdlib sentinel
-	// matched through a wrapper, because every layer propagates it by convention.
 	switch {
 	case errors.As(err, &usage):
 		return ExitUsage
