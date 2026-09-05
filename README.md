@@ -57,6 +57,35 @@ protected branch, or picking what to stage when the index is empty and the tree
 is not. `--no-input` turns every question into an error that names the flag you
 should have passed.
 
+### When git has already written the message
+
+A merge, a `merge --squash`, a cherry-pick and a revert leave the right message
+on disk before autogit is invoked — including the `--no-commit` forms, where git
+writes the message but no ref to go with it. autogit commits that message
+**verbatim** — no model call, no validation — and says so:
+
+```
+$ autogit commit
+committed 4f2a1c9: Merge branch 'feature' (git's own merge message)
+```
+
+`Merge branch 'x'` is a convention that `git log --merges` and changelog tooling
+read, and a cherry-pick's message belongs to its original author; neither is
+autogit's to rewrite. No conventional-commits validator would pass either one,
+so running it would burn every attempt and then reject a merge you had already
+resolved correctly.
+
+Conflicts must be resolved and staged first — `--all` against a half-resolved
+merge would otherwise commit the conflict markers. That refusal is
+unconditional and does not depend on `preparedMessage`.
+
+A rebase, a bisect and a multi-commit `cherry-pick A B C` are still refused
+outright: there the tool is `--continue`, and a commit from autogit would leave
+the todo list unadvanced and quietly drop the remaining steps. A single-commit
+pick or revert has no such list and goes through.
+
+Set `"preparedMessage": false` to generate a message in these states instead.
+
 ### Exit codes
 
 | Code | Meaning |
@@ -64,7 +93,7 @@ should have passed.
 | 0 | success, including `--dry-run` |
 | 1 | internal error |
 | 2 | usage error |
-| 3 | not a git repository, or a state that blocks committing |
+| 3 | not a git repository, a state that blocks committing, or unresolved conflicts |
 | 4 | nothing to commit |
 | 5 | protected branch without `--force` |
 | 6 | provider failure (missing binary, 401, timeout, network) |
@@ -86,6 +115,7 @@ CLI flags → `AUTOGIT_*` → `<repo>/.autogit.json` → `$AUTOGIT_CONFIG` or
   "provider": "claude-cli",
   "preset": "conventional",
   "confirm": false,
+  "preparedMessage": true,
   "attempts": 3,
   "timeout": "90s",
   "protectedBranches": ["main", "master", "develop", "stage", "staging", "release/*"],
@@ -120,7 +150,8 @@ file is a startup error, not a warning.
 ### The repository file is untrusted input
 
 A `.autogit.json` you cloned along with someone else's repository may set only
-`preset`, `presets.*`, `protectedBranches`, `confirm` and `diff.*`. `provider`
+`preset`, `presets.*`, `protectedBranches`, `confirm`, `preparedMessage` and
+`diff.*`. `provider`
 and `providers.*` are global-only: otherwise `providers.claude-cli.binary` from
 a stranger's repo would be arbitrary code execution, and `baseUrl` would be a
 key collector. Unknown keys are errors everywhere — a typo in
@@ -137,6 +168,7 @@ key collector. Unknown keys are errors everywhere — a typo in
 | `AUTOGIT_ATTEMPTS` | how many times the model may fix its output |
 | `AUTOGIT_TIMEOUT` | budget for one generation |
 | `AUTOGIT_CONFIRM` | ask before committing |
+| `AUTOGIT_PREPARED_MESSAGE` | use git's own merge/squash/cherry-pick/revert message |
 
 ## Presets
 

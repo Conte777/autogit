@@ -20,6 +20,7 @@ type Config struct {
 	Provider          string                    `json:"provider,omitempty" jsonschema:"which provider answers; global config only"`
 	Preset            string                    `json:"preset,omitempty" jsonschema:"name of the commit/branch format"`
 	Confirm           bool                      `json:"confirm" jsonschema:"ask before committing; honoured only on an interactive terminal"`
+	PreparedMessage   bool                      `json:"preparedMessage" jsonschema:"commit the message git prepared for a merge, squash merge, cherry-pick or revert instead of generating one"`
 	Attempts          int                       `json:"attempts,omitempty" jsonschema:"how many times the model may be asked to fix its output"`
 	Timeout           Duration                  `json:"timeout,omitempty" jsonschema:"budget for one generation, e.g. 90s"`
 	ProtectedBranches []string                  `json:"protectedBranches,omitempty" jsonschema:"branch name globs that require --force"`
@@ -116,6 +117,7 @@ func Default() Config {
 		Provider:          "claude-cli",
 		Preset:            "conventional",
 		Confirm:           false,
+		PreparedMessage:   true,
 		Attempts:          3,
 		Timeout:           Duration(90 * time.Second),
 		ProtectedBranches: []string{"main", "master", "develop", "stage", "staging", "release/*"},

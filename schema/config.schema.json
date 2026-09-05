@@ -23,6 +23,10 @@
       "type": "boolean",
       "description": "ask before committing; honoured only on an interactive terminal"
     },
+    "preparedMessage": {
+      "type": "boolean",
+      "description": "commit the message git prepared for a merge, squash merge, cherry-pick or revert instead of generating one"
+    },
     "attempts": {
       "type": "integer",
       "description": "how many times the model may be asked to fix its output"
@@ -307,6 +311,7 @@
   "title": "autogit configuration",
   "required": [
     "confirm",
+    "preparedMessage",
     "diff",
     "providers"
   ],

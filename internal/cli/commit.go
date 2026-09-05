@@ -95,9 +95,18 @@ func runCommit(ctx context.Context, g *globals, out *ui.UI, req app.CommitReques
 	}
 	if result.Preview {
 		out.Print("%s", result.Message)
+		// The note goes to stderr so that `autogit commit-msg > file` keeps the
+		// message and nothing else.
+		if result.Prepared != git.OpNone {
+			out.Warn("this is git's own %s message, used verbatim", result.Prepared)
+		}
 		return nil
 	}
-	out.Print("%s", fmt.Sprintf("committed %s: %s", result.ShortHash, firstLine(result.Message)))
+	line := fmt.Sprintf("committed %s: %s", result.ShortHash, firstLine(result.Message))
+	if result.Prepared != git.OpNone {
+		line += fmt.Sprintf(" (git's own %s message)", result.Prepared)
+	}
+	out.Print("%s", line)
 	return nil
 }
 

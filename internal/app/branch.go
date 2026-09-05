@@ -33,8 +33,12 @@ var ErrNoBranchInput = errors.New("no description and no changes to describe")
 
 // Branch creates and switches to <prefix>/<slug>.
 func (a *App) Branch(ctx context.Context, req BranchRequest) (BranchResult, error) {
-	if err := a.Repo.CheckState(ctx); err != nil {
-		return BranchResult{}, err
+	st, stateErr := a.Repo.State(ctx)
+	if stateErr != nil {
+		return BranchResult{}, stateErr
+	}
+	if blocked := st.Blocked(); blocked != nil {
+		return BranchResult{}, blocked
 	}
 
 	format := a.Preset.Branch
