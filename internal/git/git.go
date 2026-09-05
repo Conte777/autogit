@@ -98,6 +98,9 @@ func Open(ctx context.Context, dir string, opts Options) (*Repo, error) {
 // Root is the absolute path of the working tree.
 func (r *Repo) Root() string { return r.root }
 
+// Interactive reports whether git is allowed to ask this repo's caller anything.
+func (r *Repo) Interactive() bool { return r.opts.Interactive }
+
 func (r *Repo) commitTimeout() time.Duration {
 	if r.opts.CommitTimeout > 0 {
 		return r.opts.CommitTimeout

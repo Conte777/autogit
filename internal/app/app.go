@@ -21,6 +21,7 @@ type App struct {
 	Preset   preset.Preset
 	Provider gen.Provider
 	// Prompt is the one place that says whether there is anybody to ask.
+	// Required: a nil Prompt is a wiring bug, not a quiet no.
 	Prompt ui.Prompter
 	// PresetName selects the embedded prompt when the preset points at no file.
 	PresetName string

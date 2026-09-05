@@ -55,8 +55,10 @@ autogit branch                # infer both the type and the slug from the diff
 On a terminal autogit asks before doing anything surprising: committing on a
 protected branch, or picking what to stage when the index is empty and the tree
 is not. `--no-input` turns every question into an error that names the flag you
-should have passed, and git is told the same, so it will not stop for a
-credential or askpass prompt of its own.
+should have passed. git is told the same thing autogit knows: wherever autogit
+has nobody to ask — `--no-input`, a redirected stdout, mcp, the hook — git will
+not stop for a credential or askpass prompt of its own either. Credential
+storage keeps working; it answers without asking.
 
 ### When git has already written the message
 

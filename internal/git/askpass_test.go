@@ -18,12 +18,16 @@ func askpass(t *testing.T, dir string) string {
 	t.Helper()
 	script := filepath.Join(t.TempDir(), "askpass.sh")
 	marker := script + ".called"
-	body := "#!/bin/sh\necho \"$*\" >> " + marker + "\necho hunter2\n"
+	body := "#!/bin/sh\necho \"$*\" >> '" + marker + "'\necho hunter2\n"
 	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("GIT_ASKPASS", script)
 	t.Setenv("SSH_ASKPASS", script)
+	// The machine's own credential.helper would answer for example.com and
+	// decide these tests for a reason that has nothing to do with the code.
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_SYSTEM", os.DevNull)
 	runGit(t, dir, "config", "core.askPass", script)
 	return marker
 }

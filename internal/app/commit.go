@@ -110,7 +110,7 @@ func (a *App) Commit(ctx context.Context, req CommitRequest) (CommitResult, erro
 		return out, nil
 	}
 
-	if confirmErr := a.confirmCommit(req, out.Message); confirmErr != nil {
+	if confirmErr := a.confirmCommit(out.Message); confirmErr != nil {
 		return CommitResult{}, confirmErr
 	}
 
@@ -246,7 +246,7 @@ func (a *App) stage(ctx context.Context, req CommitRequest, allowEmpty bool) err
 	return nil
 }
 
-func (a *App) confirmCommit(req CommitRequest, message string) error {
+func (a *App) confirmCommit(message string) error {
 	// `confirm` is a terminal courtesy. Honouring it where nobody can answer
 	// would let a global `confirm: true` deadlock the agent path.
 	if !a.Config.Confirm || !a.Prompt.Interactive() {
