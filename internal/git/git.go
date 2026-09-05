@@ -129,7 +129,7 @@ func (r *Repo) run(ctx context.Context, timeout time.Duration, stdin string, arg
 func (r *Repo) env() []string {
 	// LC_ALL pins git's messages and porcelain wording to English: everything
 	// below parses git output, and the user's locale must not change it.
-	env := append(os.Environ(), "LC_ALL=C", "LANG=C")
+	env := Environ("LC_ALL=C", "LANG=C")
 	if !r.opts.Interactive {
 		env = append(env, "GIT_TERMINAL_PROMPT=0")
 	}
