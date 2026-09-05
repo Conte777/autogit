@@ -187,14 +187,12 @@ func TestNoLauncherScript(t *testing.T) {
 	if _, err := os.Stat("bin"); err == nil {
 		t.Error("plugins/autogit/bin exists; the plugin ships no executables")
 	}
-	for _, path := range []string{filepath.Join("hooks", "hooks.json"), ".mcp.json"} {
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("read %s: %v", path, err)
-		}
-		if strings.Contains(string(data), "CLAUDE_PLUGIN_ROOT") {
-			t.Errorf("%s reaches into the plugin root; autogit is found on PATH", path)
-		}
+	data, err := os.ReadFile(filepath.Join("hooks", "hooks.json"))
+	if err != nil {
+		t.Fatalf("read hooks.json: %v", err)
+	}
+	if strings.Contains(string(data), "CLAUDE_PLUGIN_ROOT") {
+		t.Error("hooks.json reaches into the plugin root; autogit is found on PATH")
 	}
 }
 
@@ -219,5 +217,13 @@ func TestMCPServerRunsTheBinaryFromPath(t *testing.T) {
 	}
 	if len(server.Env) != 0 {
 		t.Errorf("server carries env %v; API keys reach autogit from the user's own environment", server.Env)
+	}
+
+	data, err := os.ReadFile(".mcp.json")
+	if err != nil {
+		t.Fatalf("read .mcp.json: %v", err)
+	}
+	if strings.Contains(string(data), "CLAUDE_PLUGIN_ROOT") {
+		t.Error(".mcp.json reaches into the plugin root; autogit is found on PATH")
 	}
 }

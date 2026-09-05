@@ -2,7 +2,7 @@
   "$schema": "https://www.schemastore.org/claude-code-plugin-manifest.json",
   "name": "autogit",
   "version": "0.1.0",
-  "description": "Deterministic git commits and branch names: /autogit:commit, /autogit:commit-msg and /autogit:branch are answered by the autogit binary on PATH, not by the model.",
+  "description": "Deterministic git commits and branch names: /autogit:commit, /autogit:commit-msg and /autogit:branch are answered by the autogit binary on PATH, not by the model. The same binary runs as an MCP server, so an agent gets the commit and branch tools too.",
   "author": { "name": "Alexey Kolesnikov" },
   "repository": "https://github.com/Conte777/autogit",
   "license": "MIT",
