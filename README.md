@@ -59,8 +59,9 @@ should have passed.
 ### When git has already written the message
 
 A merge, a `merge --squash`, a cherry-pick and a revert leave the right message
-on disk before autogit is invoked. autogit commits that message **verbatim** —
-no model call, no validation — and says so:
+on disk before autogit is invoked — including the `--no-commit` forms, where git
+writes the message but no ref to go with it. autogit commits that message
+**verbatim** — no model call, no validation — and says so:
 
 ```
 $ autogit commit

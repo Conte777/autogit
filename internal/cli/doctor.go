@@ -70,6 +70,8 @@ func reportState(ctx context.Context, out *ui.UI, repo *git.Repo) {
 		out.Print("state        unknown: %v", err)
 	case st.Blocked() != nil:
 		out.Print("state        BLOCKED: %v", st.Blocked())
+	case st.Op == git.OpPrepared:
+		out.Print("state        a message is prepared; git's own will be used")
 	case st.HasPreparedMessage():
 		out.Print("state        %s in progress; git's own message will be used", st.Op)
 	default:

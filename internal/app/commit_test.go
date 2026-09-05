@@ -302,6 +302,29 @@ func TestCommitUsesTheSquashMessage(t *testing.T) {
 	}
 }
 
+// A clean `cherry-pick -n` leaves MERGE_MSG and no ref at all, so the message
+// is only reachable if a bare MERGE_MSG counts. Rewriting it would replace the
+// original author's message with our own.
+func TestCommitKeepsACleanCherryPicksMessage(t *testing.T) {
+	e := newEnv(t)
+	e.diverge()
+	e.git("cherry-pick", "-n", "extra")
+
+	got, err := e.app().Commit(context.Background(), app.CommitRequest{Stage: app.StageStaged})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Message != "extra" {
+		t.Errorf("Message = %q, want the picked commit's own message", got.Message)
+	}
+	if got.Prepared != git.OpPrepared {
+		t.Errorf("Prepared = %q, want %q", got.Prepared, git.OpPrepared)
+	}
+	if e.prov.Sessions != 0 {
+		t.Errorf("the provider was asked %d time(s)", e.prov.Sessions)
+	}
+}
+
 // The conflict check runs before staging: `--all` would otherwise commit a file
 // full of conflict markers.
 func TestCommitRefusesUnresolvedConflicts(t *testing.T) {

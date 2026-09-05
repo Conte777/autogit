@@ -15,6 +15,10 @@ A prepared message is not a draft and not a suggestion: `git log --merges` and
 changelog tooling read its shape, and a cherry-pick's message belongs to the
 original author. Nothing rewrites it.
 
+The file is the authority, not the ref beside it. A clean `cherry-pick -n`
+writes `MERGE_MSG` and leaves no `CHERRY_PICK_HEAD`, so a message with no ref
+of its own is still a prepared message — the `prepared` operation.
+
 Not "the default message" — that is `commit.template`, which is a blank form
 the user fills in, and which autogit does not treat as prepared.
 
@@ -32,7 +36,8 @@ generation that failed is an error, not a reason to reach for git's message.
 
 A multi-step git operation the working tree is in the middle of, read from the
 git directory by `Repo.State` and typed as a `git.Operation`: merge, squash
-merge, cherry-pick, revert, rebase, bisect.
+merge, cherry-pick, revert, rebase, bisect, and `prepared` for a message whose
+operation left no ref to name it.
 
 The state itself carries no policy. Two questions are asked of it separately:
 `Blocked()` — may autogit commit here at all? — and `HasPreparedMessage()` —

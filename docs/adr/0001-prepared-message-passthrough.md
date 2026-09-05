@@ -64,6 +64,23 @@ gone before either the preview or the commit sees it. `Repo.Commit` keeps
 line with `#`. Cleaning at read time rather than at commit time is what keeps
 preview and commit byte-identical.
 
+### The message file is the authority, not the ref
+
+The obvious detection is by ref: `MERGE_HEAD`, `CHERRY_PICK_HEAD`, `REVERT_HEAD`.
+It is not enough, and git is not symmetric about it. A clean `revert -n` leaves
+`REVERT_HEAD`; a clean `cherry-pick -n` leaves **only** `MERGE_MSG`. Detecting by
+ref alone would miss the pick and replace the original author's message with a
+generated one — the same failure as the squash case, one branch further along.
+
+So the search ends on a bare `MERGE_MSG`, reported as the `prepared` operation.
+That is safe because a commit consumes the file: `git commit` removes both
+`MERGE_MSG` and `SQUASH_MSG`, and an ordinary commit never writes either. The
+staleness window is the same one already accepted for `SQUASH_MSG`, and the
+label in the output is what makes any reuse visible.
+
+`MERGE_MSG` is looked for last, after every real in-progress operation, so it
+never masks one.
+
 ### The empty-index check is waived for a merge only
 
 `git merge -s ours` legitimately produces a commit whose tree equals HEAD's.

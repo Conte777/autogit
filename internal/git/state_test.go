@@ -190,17 +190,16 @@ func TestPreparedMessageReadsSquashMsg(t *testing.T) {
 	}
 }
 
-// TestPreparedMessageAfterCleanPickAndRevert records what the installed git
-// actually does: a `-n` pick or revert that does not conflict still writes
-// MERGE_MSG. If it ever stops, autogit falls back to refusing, and this test is
-// where that change shows up.
-func TestPreparedMessageAfterCleanPickAndRevert(t *testing.T) {
+// The two are not symmetric on the installed git: a clean `revert -n` leaves
+// REVERT_HEAD, a clean `cherry-pick -n` leaves only MERGE_MSG. Detection by ref
+// alone would miss the pick and rewrite the original author's message.
+func TestCleanNoCommitPickAndRevert(t *testing.T) {
 	for _, tc := range []struct {
 		name string
-		op   Operation
+		want Operation
 		run  func(dir string)
 	}{
-		{"cherry-pick", OpCherryPick, func(dir string) {
+		{"cherry-pick", OpPrepared, func(dir string) {
 			runGit(t, dir, "cherry-pick", "-n", "extra")
 		}},
 		{"revert", OpRevert, func(dir string) {
@@ -211,16 +210,62 @@ func TestPreparedMessageAfterCleanPickAndRevert(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := diverged(t)
 			tc.run(dir)
-			msg, err := open(t, dir).PreparedMessage(context.Background(), tc.op)
+
+			st := state(t, dir)
+			if st.Op != tc.want {
+				t.Fatalf("State() after a clean `%s -n` = %+v, want Op %q", tc.name, st, tc.want)
+			}
+			if !st.HasPreparedMessage() {
+				t.Fatal("HasPreparedMessage() = false, so the message would be regenerated")
+			}
+			// A bare MERGE_MSG was invisible to the old check, so finding it
+			// must not turn into a refusal that did not exist before.
+			if st.Op == OpPrepared && st.Blocked() != nil {
+				t.Fatalf("Blocked() = %v, want nil", st.Blocked())
+			}
+
+			msg, err := open(t, dir).PreparedMessage(context.Background(), st.Op)
 			if err != nil {
 				t.Fatal(err)
 			}
 			if msg == "" {
-				t.Fatalf("git wrote no MERGE_MSG for a clean `%s -n`; "+
-					"autogit falls back to refusing, which is safe but worth knowing", tc.name)
+				t.Fatalf("git wrote no message for a clean `%s -n`", tc.name)
 			}
 			if strings.Contains(msg, "#") {
 				t.Fatalf("PreparedMessage() kept a comment: %q", msg)
+			}
+		})
+	}
+}
+
+// A commit consumes MERGE_MSG and SQUASH_MSG, which is what keeps the bare
+// MERGE_MSG fallback from reusing one message forever.
+func TestCommittingClearsThePreparedMessage(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		setup func(dir string)
+	}{
+		{"merge", func(dir string) {
+			runGit(t, dir, "merge", "--no-commit", "extra")
+		}},
+		{"squash", func(dir string) {
+			runGit(t, dir, "merge", "--squash", "extra")
+		}},
+		{"cherry-pick", func(dir string) {
+			runGit(t, dir, "cherry-pick", "-n", "extra")
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := diverged(t)
+			tc.setup(dir)
+			if !state(t, dir).HasPreparedMessage() {
+				t.Fatal("no prepared message to begin with")
+			}
+			runGit(t, dir, "commit", "--no-edit")
+
+			st := state(t, dir)
+			if st.Op != OpNone {
+				t.Fatalf("State() after the commit = %+v, want the zero state", st)
 			}
 		})
 	}

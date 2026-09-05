@@ -19,6 +19,10 @@ const (
 	OpRevert     Operation = "revert"
 	OpRebase     Operation = "rebase"
 	OpBisect     Operation = "bisect"
+	// OpPrepared is a message with no ref beside it. A clean `cherry-pick -n`
+	// writes MERGE_MSG and nothing else, so detection by ref alone would miss
+	// it and rewrite the original author's message.
+	OpPrepared Operation = "prepared"
 )
 
 // State is what the git directory says about work already under way.
@@ -55,6 +59,7 @@ func (r *Repo) State(ctx context.Context) (State, error) {
 		{"CHERRY_PICK_HEAD", OpCherryPick},
 		{"MERGE_HEAD", OpMerge},
 		{"SQUASH_MSG", OpSquash},
+		{"MERGE_MSG", OpPrepared},
 	} {
 		if exists(c.path) {
 			return State{Op: c.op}, nil
@@ -64,9 +69,9 @@ func (r *Repo) State(ctx context.Context) (State, error) {
 }
 
 // Blocked reports the states where an automated commit would do something the
-// user did not ask for. A squash merge is not one of them: it leaves no ref
-// behind, git considers the working tree ordinary, and refusing it would break
-// commands that work today.
+// user did not ask for. A squash merge and a bare message are not among them:
+// neither leaves a ref behind, git considers the working tree ordinary, and
+// refusing them would break commands that work today.
 func (s State) Blocked() error {
 	if s.Locked {
 		return &StateError{Reason: "index.lock exists: another git process is running"}
@@ -93,7 +98,7 @@ func (s State) Blocked() error {
 // commit should carry.
 func (s State) HasPreparedMessage() bool {
 	switch s.Op {
-	case OpMerge, OpSquash, OpCherryPick, OpRevert:
+	case OpMerge, OpSquash, OpCherryPick, OpRevert, OpPrepared:
 		return true
 	default:
 		return false
@@ -105,7 +110,7 @@ func (s State) HasPreparedMessage() bool {
 func (r *Repo) PreparedMessage(ctx context.Context, op Operation) (string, error) {
 	var name string
 	switch op {
-	case OpMerge, OpCherryPick, OpRevert:
+	case OpMerge, OpCherryPick, OpRevert, OpPrepared:
 		name = "MERGE_MSG"
 	case OpSquash:
 		name = "SQUASH_MSG"
