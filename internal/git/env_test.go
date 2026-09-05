@@ -1,43 +1,40 @@
 package git
 
 import (
-	"context"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 )
 
-// A git hook exports GIT_DIR, and GIT_DIR beats cmd.Dir. Inheriting it makes
-// every command land in the hook's repository: autogit run from a hook would
-// commit somewhere else, and the test suite rewrote the developer's own
-// .git/config until this was fixed.
-func TestGitDirFromAHookDoesNotRedirectTheRepo(t *testing.T) {
-	work := newRepo(t)
-	write(t, work, "a.txt", "one\n")
-	runGit(t, work, "add", ".")
-	runGit(t, work, "commit", "-m", "seed")
+// lefthook runs `go test ./...` from the pre-push hook, where git exports
+// GIT_DIR — and GIT_DIR beats cmd.Dir. Until the helpers filtered it, every
+// `git init`/`git config` in the suite landed in the developer's own clone:
+// TestOpenRejectsBare set core.bare on it and left the checkout unusable.
+func TestTestRepoIsIsolatedFromAnInheritedGitDir(t *testing.T) {
+	outer := t.TempDir()
+	runGit(t, outer, "init", "-b", "main")
 
-	elsewhere := newRepo(t)
-	t.Setenv("GIT_DIR", filepath.Join(elsewhere, ".git"))
-	t.Setenv("GIT_WORK_TREE", elsewhere)
-	t.Setenv("GIT_INDEX_FILE", filepath.Join(elsewhere, ".git", "index"))
+	t.Setenv("GIT_DIR", filepath.Join(outer, ".git"))
+	t.Setenv("GIT_WORK_TREE", outer)
 
-	repo := open(t, work)
-	branch, err := repo.Current(context.Background())
+	dir := newRepo(t)
+	runGit(t, dir, "config", "user.email", "inner@example.com")
+
+	if got := strings.TrimSpace(runGit(t, dir, "rev-parse", "--absolute-git-dir")); resolve(t, got) != resolve(t, filepath.Join(dir, ".git")) {
+		t.Fatalf("the helper worked on %s, want the repo it created at %s", got, dir)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".git")); err != nil {
+		t.Fatalf("newRepo created no repository of its own: %v", err)
+	}
+
+	cfg, err := os.ReadFile(filepath.Join(outer, ".git", "config"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if branch.Name != "main" {
-		t.Errorf("Current() = %q, want the branch of the repo we opened", branch.Name)
-	}
-
-	dir, err := repo.gitDir(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := resolve(t, dir); got != resolve(t, filepath.Join(work, ".git")) {
-		t.Errorf("gitDir() = %s, want %s: GIT_DIR from the environment won", got, work)
+	if strings.Contains(string(cfg), "inner@example.com") {
+		t.Errorf("the helper wrote into the repo GIT_DIR pointed at:\n%s", cfg)
 	}
 }
 

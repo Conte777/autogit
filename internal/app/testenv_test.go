@@ -92,7 +92,9 @@ func (e *env) commitFile(name, content, message string) {
 
 func (e *env) head() string {
 	e.t.Helper()
-	out, err := exec.Command("git", "-C", e.dir, "rev-parse", "HEAD").Output()
+	cmd := exec.Command("git", "-C", e.dir, "rev-parse", "HEAD")
+	cmd.Env = git.Environ()
+	out, err := cmd.Output()
 	if err != nil {
 		return ""
 	}

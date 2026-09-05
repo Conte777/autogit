@@ -5,9 +5,9 @@ import (
 	"strings"
 )
 
-// Git exports these into every hook it runs, and they override cmd.Dir: a git
-// command inheriting them operates on the hook's repository, not the directory
-// it was pointed at. autogit runs from hooks, and so does its own test suite.
+// Git exports these into every hook it runs, and they override cmd.Dir.
+// GIT_CONFIG_GLOBAL and GIT_CONFIG_SYSTEM are absent on purpose: they pick
+// which config files git reads, not which repository it acts on.
 var locationVars = map[string]bool{
 	"GIT_DIR":                          true,
 	"GIT_COMMON_DIR":                   true,
@@ -29,9 +29,10 @@ var locationVars = map[string]bool{
 
 var locationPrefixes = []string{"GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_"}
 
-// Environ builds the environment for a git subprocess: the caller's, minus the
-// variables that would redirect git away from the directory it was given, plus
-// extra. Credential and transport settings such as GIT_SSH_COMMAND survive.
+// Environ builds the environment for a git subprocess that must act on the
+// directory it was given and nothing else, plus extra. Transport settings such
+// as GIT_SSH_COMMAND survive. It exists for the test suite, which lefthook runs
+// from the pre-push hook; Repo inherits instead, for the reason given in env.
 func Environ(extra ...string) []string {
 	env := make([]string, 0, len(os.Environ())+len(extra))
 	for _, kv := range os.Environ() {

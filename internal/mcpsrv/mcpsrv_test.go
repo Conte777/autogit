@@ -287,7 +287,9 @@ func TestCancellationReachesGit(t *testing.T) {
 	}
 	// The repository has no commits, so a successful commit is the only way
 	// HEAD could resolve at all.
-	if cmd := exec.Command("git", "-C", dir, "rev-parse", "HEAD"); cmd.Run() == nil {
+	cmd := exec.Command("git", "-C", dir, "rev-parse", "HEAD")
+	cmd.Env = git.Environ()
+	if cmd.Run() == nil {
 		t.Error("a cancelled call still committed")
 	}
 	// Cancelling between `git add` and `git commit` leaves the index staged on
