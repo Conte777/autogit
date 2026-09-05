@@ -52,6 +52,40 @@ func TestParseBothGrammars(t *testing.T) {
 			want:   hook.Command{Kind: hook.KindBranch, Args: []string{"cus-9"}},
 			ok:     true,
 		},
+		{prompt: "/autogit:commit", want: hook.Command{Kind: hook.KindCommit}, ok: true},
+		{prompt: "  /autogit:commit  ", want: hook.Command{Kind: hook.KindCommit}, ok: true},
+		{
+			prompt: "/autogit:commit all force",
+			want:   hook.Command{Kind: hook.KindCommit, All: true, Force: true},
+			ok:     true,
+		},
+		{
+			prompt: "/autogit:commit --all --force",
+			want:   hook.Command{Kind: hook.KindCommit, All: true, Force: true},
+			ok:     true,
+		},
+		{
+			prompt: "/autogit:commit tracked --dry-run",
+			want:   hook.Command{Kind: hook.KindCommit, Tracked: true, DryRun: true},
+			ok:     true,
+		},
+		{prompt: "/autogit:commit-msg", want: hook.Command{Kind: hook.KindCommitMsg}, ok: true},
+		{
+			prompt: "/autogit:branch CUS-1234 add user auth",
+			want:   hook.Command{Kind: hook.KindBranch, Args: []string{"CUS-1234", "add", "user", "auth"}},
+			ok:     true,
+		},
+		{
+			prompt: "/autogit:branch cus-9",
+			want:   hook.Command{Kind: hook.KindBranch, Args: []string{"cus-9"}},
+			ok:     true,
+		},
+		{prompt: "/other:commit"},
+		{prompt: "/other:branch add auth"},
+		{prompt: "/autogit:commitment issues"},
+		{prompt: "/autogit:"},
+		{prompt: "/autogit:autogit:commit"},
+		{prompt: "please /autogit:commit for me"},
 		{prompt: "/commitment issues"},
 		{prompt: "please /commit for me"},
 		{prompt: "how do I commit?"},
@@ -76,9 +110,11 @@ func TestParseBothGrammars(t *testing.T) {
 
 // commitMsgBeatsCommit guards the ordering: /commit is a prefix of /commit-msg.
 func TestCommitMsgIsNotParsedAsCommit(t *testing.T) {
-	got, ok := hook.Parse("/commit-msg")
-	if !ok || got.Kind != hook.KindCommitMsg {
-		t.Fatalf("Parse(/commit-msg) = %+v, %v", got, ok)
+	for _, prompt := range []string{"/commit-msg", "/autogit:commit-msg"} {
+		got, ok := hook.Parse(prompt)
+		if !ok || got.Kind != hook.KindCommitMsg {
+			t.Fatalf("Parse(%s) = %+v, %v", prompt, got, ok)
+		}
 	}
 }
 

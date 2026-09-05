@@ -52,8 +52,10 @@ type decision struct {
 	SystemMessage string `json:"systemMessage,omitempty"`
 }
 
-// commit-msg must be tried before commit: it is a prefix of it.
-var trigger = regexp.MustCompile(`^\s*/(commit-msg|commit|branch)(\s|$)`)
+// commit-msg must be tried before commit: it is a prefix of it. The optional
+// `autogit:` is the namespace Claude Code gives a plugin's commands; the literal
+// name and nothing else, so the hook never swallows another plugin's /commit.
+var trigger = regexp.MustCompile(`^\s*/(?:autogit:)?(commit-msg|commit|branch)(?:\s|$)`)
 
 // Run reads the hook payload, and blocks the prompt when it matched. Anything
 // that did not match leaves the prompt alone and exits silently.
@@ -96,14 +98,15 @@ func block(out io.Writer, reason string) error {
 }
 
 // Parse understands both the historical bare-word grammar (`/commit all force`)
-// and flags (`/commit --all --force`).
+// and flags (`/commit --all --force`), in the bare and the plugin-namespaced
+// (`/autogit:commit`) forms.
 func Parse(prompt string) (Command, bool) {
 	m := trigger.FindStringSubmatch(prompt)
 	if m == nil {
 		return Command{}, false
 	}
 	kind := Kind(m[1])
-	rest := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(prompt), "/"+string(kind)))
+	rest := strings.TrimSpace(prompt[len(m[0]):])
 
 	cmd := Command{Kind: kind}
 	if kind == KindBranch {

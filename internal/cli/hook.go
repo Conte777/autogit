@@ -15,8 +15,9 @@ func hookCmd(g *globals) *cobra.Command {
 	return &cobra.Command{
 		Use:   "hook",
 		Short: "Claude Code UserPromptSubmit hook (reads the payload on stdin)",
-		Long: "Blocks the prompt for /commit, /commit-msg and /branch and does the work\n" +
-			"itself, so the model never wakes up. Any other prompt passes through.",
+		Long: "Blocks the prompt for /commit, /commit-msg and /branch, bare or\n" +
+			"plugin-namespaced (/autogit:commit), and does the work itself, so the\n" +
+			"model never wakes up. Any other prompt passes through.",
 		Args:   cobra.NoArgs,
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
