@@ -118,6 +118,7 @@ type repoConfig struct {
 	Presets           map[string]PresetOverride `json:"presets,omitempty"`
 	ProtectedBranches []string                  `json:"protectedBranches,omitempty"`
 	Confirm           *bool                     `json:"confirm,omitempty"`
+	PreparedMessage   *bool                     `json:"preparedMessage,omitempty"`
 	Diff              json.RawMessage           `json:"diff,omitempty"`
 }
 
@@ -128,7 +129,8 @@ func applyRepo(cfg *Config, data []byte, path string) error {
 	var repo repoConfig
 	if err := decodeStrict(data, &repo); err != nil {
 		return configErr("%s: %v\n"+
-			"a repository config may only set preset, presets, protectedBranches, confirm and diff; "+
+			"a repository config may only set preset, presets, protectedBranches, confirm, "+
+			"preparedMessage and diff; "+
 			"provider and provider settings are global-only", path, err)
 	}
 
@@ -140,6 +142,9 @@ func applyRepo(cfg *Config, data []byte, path string) error {
 	}
 	if repo.Confirm != nil {
 		cfg.Confirm = *repo.Confirm
+	}
+	if repo.PreparedMessage != nil {
+		cfg.PreparedMessage = *repo.PreparedMessage
 	}
 	if len(repo.Diff) > 0 {
 		if err := decodeStrict(repo.Diff, &cfg.Diff); err != nil {
@@ -189,6 +194,13 @@ func applyEnv(cfg *Config, env func(string) (string, bool)) error {
 			return configErr("AUTOGIT_CONFIRM must be true or false (got %q)", v)
 		}
 		cfg.Confirm = b
+	}
+	if v, ok := env("AUTOGIT_PREPARED_MESSAGE"); ok && v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return configErr("AUTOGIT_PREPARED_MESSAGE must be true or false (got %q)", v)
+		}
+		cfg.PreparedMessage = b
 	}
 	// Scoped to the selected provider: a bare model name applied globally would
 	// pair an OpenAI model with an Anthropic endpoint.

@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Conte777/autogit/internal/app"
+	"github.com/Conte777/autogit/internal/git"
 	"github.com/Conte777/autogit/internal/hook"
 	"github.com/Conte777/autogit/internal/ui"
 )
@@ -56,9 +57,24 @@ func runHookCommand(ctx context.Context, g *globals, c hook.Command) (string, er
 		if err != nil {
 			return "", err
 		}
+		// The label matters most here: the model is told this tool produces
+		// conventional commits, and would otherwise try to "fix" a subject git
+		// wrote.
 		if result.Preview {
-			return result.Message, nil
+			return result.Message + preparedSuffix(result.Prepared, true), nil
 		}
-		return fmt.Sprintf("committed %s: %s", result.ShortHash, firstLine(result.Message)), nil
+		return fmt.Sprintf("committed %s: %s%s",
+			result.ShortHash, firstLine(result.Message), preparedSuffix(result.Prepared, false)), nil
+	}
+}
+
+func preparedSuffix(op git.Operation, preview bool) string {
+	switch {
+	case op == git.OpNone:
+		return ""
+	case preview:
+		return fmt.Sprintf("\n\n(git's own %s message; it would be used verbatim, not generated)", op)
+	default:
+		return fmt.Sprintf(" (git's own %s message, used verbatim)", op)
 	}
 }

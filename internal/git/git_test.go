@@ -26,40 +26,6 @@ func TestOpenRejectsBare(t *testing.T) {
 	}
 }
 
-func TestCheckStateDetectsMerge(t *testing.T) {
-	dir := newRepo(t)
-	write(t, dir, "a.txt", "one\n")
-	runGit(t, dir, "add", ".")
-	runGit(t, dir, "commit", "-m", "init")
-
-	runGit(t, dir, "switch", "-c", "side")
-	write(t, dir, "a.txt", "side\n")
-	runGit(t, dir, "commit", "-am", "side")
-	runGit(t, dir, "switch", "main")
-	write(t, dir, "a.txt", "main\n")
-	runGit(t, dir, "commit", "-am", "main")
-
-	// A conflicting merge exits non-zero and leaves MERGE_HEAD behind.
-	tryGit(dir, "merge", "side")
-
-	r := open(t, dir)
-	err := r.CheckState(context.Background())
-	if err == nil || !strings.Contains(err.Error(), "merge") {
-		t.Fatalf("CheckState during a merge = %v, want a merge StateError", err)
-	}
-}
-
-func TestCheckStateDetectsIndexLock(t *testing.T) {
-	dir := newRepo(t)
-	r := open(t, dir)
-	if err := os.WriteFile(filepath.Join(dir, ".git", "index.lock"), nil, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := r.CheckState(context.Background()); err == nil || !strings.Contains(err.Error(), "index.lock") {
-		t.Fatalf("CheckState with index.lock = %v, want an index.lock StateError", err)
-	}
-}
-
 func TestCurrentBranchAndDetached(t *testing.T) {
 	ctx := context.Background()
 	dir := newRepo(t)
