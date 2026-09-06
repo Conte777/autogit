@@ -23,6 +23,7 @@ const EmptyTree = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 const (
 	defaultTimeout       = 30 * time.Second
 	defaultCommitTimeout = 30 * time.Second
+	waitDelay            = 5 * time.Second
 )
 
 // ErrNotARepo is returned by Open when path is outside any git repository.
@@ -127,9 +128,10 @@ func (r *Repo) runBounded(ctx context.Context, timeout time.Duration, limit int,
 	var stderr bytes.Buffer
 	cmd.Stdout = stdout
 	cmd.Stderr = &stderr
+	cmd.WaitDelay = waitDelay
 
 	err := cmd.Run()
-	if stdout.over {
+	if stdout.over && errors.Is(ctx.Err(), context.Canceled) {
 		return stdout.String(), true, nil
 	}
 	if err != nil {

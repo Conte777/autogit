@@ -3,6 +3,7 @@ package git
 import (
 	"context"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 )
@@ -40,7 +41,7 @@ func (r *Repo) WorktreeDiff(ctx context.Context, opts DiffOptions) (Diff, error)
 	return r.diff(ctx, opts, []string{"diff", base})
 }
 
-const diffReadFactor = 8
+const diffReadBudgets = 8
 
 func (r *Repo) diff(ctx context.Context, opts DiffOptions, base []string) (Diff, error) {
 	files, err := r.diffFiles(ctx, base)
@@ -48,19 +49,21 @@ func (r *Repo) diff(ctx context.Context, opts DiffOptions, base []string) (Diff,
 		return Diff{Files: files}, err
 	}
 
-	limit := opts.MaxBytes * diffReadFactor
+	limit := 0
+	if opts.MaxBytes > 0 {
+		limit = min(opts.MaxBytes, math.MaxInt/diffReadBudgets) * diffReadBudgets
+	}
 	body, over, err := r.runBounded(ctx, defaultTimeout, limit, "", r.diffArgs(opts, base, false)...)
 	if err != nil {
 		return Diff{}, err
 	}
-	if !over && (opts.MaxBytes <= 0 || len(body) <= opts.MaxBytes) {
+	if over {
+		body = wholeSections(body)
+	} else if opts.MaxBytes <= 0 || len(body) <= opts.MaxBytes {
 		return Diff{Files: files, Text: body}, nil
 	}
-	if over {
-		body = ""
-	}
 
-	stat, _, err := r.runBounded(ctx, defaultTimeout, limit, "", r.diffArgs(opts, base, true)...)
+	stat, _, err := r.runBounded(ctx, defaultTimeout, opts.MaxBytes, "", r.diffArgs(opts, base, true)...)
 	if err != nil {
 		return Diff{}, err
 	}
@@ -168,6 +171,14 @@ func splitDiffSections(body string) []string {
 		sections = append(sections, body)
 	}
 	return sections
+}
+
+func wholeSections(prefix string) string {
+	sections := splitDiffSections(prefix)
+	if len(sections) < 2 {
+		return ""
+	}
+	return prefix[:len(prefix)-len(sections[len(sections)-1])]
 }
 
 func cutLines(s string, maxBytes int) string {

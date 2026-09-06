@@ -108,6 +108,9 @@ func TestStagedDiffLadderKeepsFullFileListAndWholeHunks(t *testing.T) {
 	if !strings.Contains(d.Text, "f000.txt |") {
 		t.Error("--stat block missing: the model would not see which files changed")
 	}
+	if !strings.Contains(d.Text, "diff --git ") {
+		t.Fatal("no file body survived: the section rung of the ladder is not being exercised")
+	}
 	assertWholeSections(t, d.Text)
 }
 
@@ -201,4 +204,29 @@ func TestStagedDiffFarOverBudgetReadsBoundedMemory(t *testing.T) {
 	if strings.Contains(d.Text, "diff --git") {
 		t.Error("a body that was never read whole made it into the text")
 	}
+}
+
+func TestStagedDiffKeepsSmallBodiesReadBeforeTheBound(t *testing.T) {
+	ctx := context.Background()
+	dir := newRepo(t)
+	write(t, dir, "src/a.go", "package a\n")
+	write(t, dir, "src/b.go", "package b\n")
+	write(t, dir, "vendor/big.txt", strings.Repeat("vendored noise\n", (16<<20)/15))
+	runGit(t, dir, "add", ".")
+
+	const maxBytes = 40000
+	d, err := open(t, dir).StagedDiff(ctx, DiffOptions{MaxBytes: maxBytes, Context: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !d.Truncated || len(d.Text) > maxBytes {
+		t.Fatalf("Truncated = %v, text = %d bytes, want a truncated diff within %d", d.Truncated, len(d.Text), maxBytes)
+	}
+	if !strings.Contains(d.Text, "package a") || !strings.Contains(d.Text, "package b") {
+		t.Errorf("bodies read before the bound were dropped:\n%s", d.Text)
+	}
+	if strings.Contains(d.Text, "vendored noise") {
+		t.Error("the oversized body leaked into the text")
+	}
+	assertWholeSections(t, d.Text)
 }
