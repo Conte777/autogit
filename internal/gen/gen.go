@@ -5,6 +5,7 @@ package gen
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -70,6 +71,18 @@ type FailureError struct {
 
 func (e *FailureError) Error() string {
 	return fmt.Sprintf("no valid output after %d attempts: %s", e.Attempts, strings.Join(e.Problems, "; "))
+}
+
+// Detail returns the extra lines worth showing beside an error, or "". A
+// failed generation renders the candidate it rejected last: the surfaces that
+// answer a model — the hook and the MCP tool — need it to correct themselves,
+// and the terminal shows the same text.
+func Detail(err error) string {
+	var failure *FailureError
+	if errors.As(err, &failure) && failure.Last != "" {
+		return "last candidate: " + failure.Last
+	}
+	return ""
 }
 
 // DefaultCorrection is the follow-up sent after a rejected candidate.
