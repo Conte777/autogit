@@ -41,10 +41,7 @@ func Load(opts Options) (*Config, error) {
 	cfg := Default()
 	cfg.env = opts.Env
 
-	globalPath := opts.GlobalPath
-	if globalPath == "" {
-		globalPath = globalConfigPath(opts.Env)
-	}
+	globalPath := globalPathFor(opts)
 	if data, ok, err := readIfExists(globalPath); err != nil {
 		return nil, err
 	} else if ok {
@@ -53,8 +50,7 @@ func Load(opts Options) (*Config, error) {
 		}
 	}
 
-	if opts.RepoRoot != "" {
-		repoPath := filepath.Join(opts.RepoRoot, FileName)
+	if repoPath := repoPathFor(opts); repoPath != "" {
 		if data, ok, err := readIfExists(repoPath); err != nil {
 			return nil, err
 		} else if ok {
@@ -68,6 +64,38 @@ func Load(opts Options) (*Config, error) {
 		return nil, err
 	}
 	return &cfg, nil
+}
+
+// Files reports the config files Load would read for these options, in the
+// order it reads them. A path that does not exist is left out.
+func Files(opts Options) []string {
+	if opts.Env == nil {
+		opts.Env = os.LookupEnv
+	}
+	var files []string
+	for _, path := range []string{globalPathFor(opts), repoPathFor(opts)} {
+		if path == "" {
+			continue
+		}
+		if _, err := os.Stat(path); err == nil {
+			files = append(files, path)
+		}
+	}
+	return files
+}
+
+func globalPathFor(opts Options) string {
+	if opts.GlobalPath != "" {
+		return opts.GlobalPath
+	}
+	return globalConfigPath(opts.Env)
+}
+
+func repoPathFor(opts Options) string {
+	if opts.RepoRoot == "" {
+		return ""
+	}
+	return filepath.Join(opts.RepoRoot, FileName)
 }
 
 func readIfExists(path string) ([]byte, bool, error) {

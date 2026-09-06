@@ -229,3 +229,44 @@ func TestDoctorReportsABrokenPreset(t *testing.T) {
 		}
 	}
 }
+
+// The strict decoder reports a wrong type as a Go conversion, and a name
+// outside an enum not at all — a provider nobody offers loads fine and only
+// fails at the round trip. The schema names the path and the value.
+func TestDoctorReportsAConfigThatFailsTheSchema(t *testing.T) {
+	dir := initRepo(t)
+	global := writeFile(t, t.TempDir(), "config.json", `{"provider":"gtp-5"}`)
+
+	var stdout, stderr bytes.Buffer
+	out := ui.New(&stdout, &stderr, strings.NewReader(""), false)
+	g := &globals{repo: dir, confPath: global, env: envOf(nil)}
+
+	if err := runDoctor(context.Background(), g, out); err == nil {
+		t.Fatal("doctor passed a provider nobody offers")
+	}
+	report := stdout.String() + stderr.String()
+	for _, want := range []string{"schema", global, "gtp-5"} {
+		if !strings.Contains(report, want) {
+			t.Errorf("report is missing %q:\n%s", want, report)
+		}
+	}
+}
+
+// A config file is partial — it is merged over the defaults — so the fields a
+// user leaves out must not be reported as missing. The unknown preset stops
+// the report before it asks a provider anything.
+func TestDoctorAcceptsAPartialConfig(t *testing.T) {
+	dir := initRepo(t)
+	writeFile(t, dir, ".autogit.json", `{"preset":"nope","confirm":true}`)
+
+	var stdout, stderr bytes.Buffer
+	out := ui.New(&stdout, &stderr, strings.NewReader(""), false)
+	g := &globals{repo: dir, confPath: filepath.Join(dir, "absent.json"), env: envOf(nil)}
+
+	if err := runDoctor(context.Background(), g, out); err == nil {
+		t.Fatal("doctor passed a preset that does not exist")
+	}
+	if report := stdout.String() + stderr.String(); !strings.Contains(report, "schema       ok") {
+		t.Errorf("a config that validates was not reported as such:\n%s", report)
+	}
+}

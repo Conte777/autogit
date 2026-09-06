@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -39,11 +40,10 @@ func runDoctor(ctx context.Context, g *globals, out *ui.UI) error {
 		out.Print("repository   none (%v)", err)
 	}
 
-	cfg, err := config.Load(config.Options{
-		RepoRoot:   repoRoot,
-		GlobalPath: g.confPath,
-		Env:        g.env,
-	})
+	opts := config.Options{RepoRoot: repoRoot, GlobalPath: g.confPath, Env: g.env}
+	reportSchema(out, config.Files(opts))
+
+	cfg, err := config.Load(opts)
 	if err != nil {
 		out.Print("config       BROKEN: %v", err)
 		return err
@@ -71,6 +71,28 @@ func runDoctor(ctx context.Context, g *globals, out *ui.UI) error {
 	out.Print("provider     %s (model %s)", cfg.Provider, cfg.Model())
 
 	return checkProvider(ctx, cfg, g.env, out)
+}
+
+// reportSchema checks the config files against the generated schema. The
+// strict decoder reports a wrong type as a Go conversion and a name outside an
+// enum not at all; the schema names the path and the value.
+func reportSchema(out *ui.UI, files []string) {
+	checked, broken := 0, 0
+	for _, path := range files {
+		data, err := os.ReadFile(path) //nolint:gosec // the loader chose the path, not a caller
+		if err != nil {
+			// Load reports an unreadable file, with its own error.
+			continue
+		}
+		checked++
+		if err := config.ValidateDocument(data); err != nil {
+			broken++
+			out.Print("schema       %s: %v", path, err)
+		}
+	}
+	if checked > 0 && broken == 0 {
+		out.Print("schema       ok")
+	}
 }
 
 func reportState(ctx context.Context, out *ui.UI, repo *git.Repo, passthrough bool) {

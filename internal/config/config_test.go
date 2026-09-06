@@ -618,3 +618,18 @@ func TestValidateDocumentAcceptsAPartialConfig(t *testing.T) {
 		}
 	}
 }
+
+func TestFilesAreTheOnesLoadReads(t *testing.T) {
+	global := writeFile(t, t.TempDir(), "global.json", `{"preset":"ticket"}`)
+	repo := t.TempDir()
+
+	opts := config.Options{RepoRoot: repo, GlobalPath: global, Env: envOf(nil)}
+	if got := config.Files(opts); len(got) != 1 || got[0] != global {
+		t.Errorf("Files() = %v, want [%s]", got, global)
+	}
+
+	repoFile := writeFile(t, repo, config.FileName, `{"preset":"ticket"}`)
+	if got := config.Files(opts); len(got) != 2 || got[0] != global || got[1] != repoFile {
+		t.Errorf("Files() = %v, want [%s %s]", got, global, repoFile)
+	}
+}
