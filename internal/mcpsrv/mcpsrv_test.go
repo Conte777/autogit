@@ -186,6 +186,20 @@ func TestReplayedCommitDoesNotCommitTwice(t *testing.T) {
 
 func TestConcurrentCommitsOnOneRepoAreSerialised(t *testing.T) {
 	dir := repo(t)
+	testSerialisation(t, dir, dir)
+}
+
+func TestConcurrentCommitsSpellingTheRepoDifferentlyAreSerialised(t *testing.T) {
+	dir := repo(t)
+	sub := filepath.Join(dir, "sub")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	testSerialisation(t, dir, sub)
+}
+
+func testSerialisation(t *testing.T, dir, otherPath string) {
+	t.Helper()
 
 	var inFlight, maxInFlight atomic.Int32
 	prov := &mock.Provider{
@@ -205,11 +219,11 @@ func TestConcurrentCommitsOnOneRepoAreSerialised(t *testing.T) {
 	s := connect(t, builder(t, prov, nil))
 
 	var wg sync.WaitGroup
-	for range 2 {
+	for _, path := range []string{dir, otherPath} {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			call(t, s, "commit", map[string]any{"repoPath": dir})
+			call(t, s, "commit", map[string]any{"repoPath": path})
 		}()
 	}
 	wg.Wait()
