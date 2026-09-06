@@ -14,11 +14,10 @@ import (
 	"github.com/Conte777/autogit/internal/gen"
 )
 
-// Neither tool restricts which tree the path may name: an agent holding a
-// shell reaches every repository on disk regardless, so a permitted-directory
-// list would cost configuration and buy no protection.
-
-// CommitInput is the `commit` tool's argument object.
+// CommitInput is the `commit` tool's argument object. Neither tool restricts
+// which working tree the path may name: an agent holding a shell reaches every
+// repository on disk regardless, so a permitted-directory list would cost
+// configuration and buy no protection.
 type CommitInput struct {
 	RepoPath  string `json:"repoPath" jsonschema:"absolute path to the repository, or any directory inside it"`
 	StageMode string `json:"stageMode,omitempty" jsonschema:"staged (default), all (git add -A first) or tracked (git add -u first)"`
@@ -40,9 +39,9 @@ type Builder func(ctx context.Context, repoPath string) (*app.App, error)
 type Server struct {
 	build Builder
 
-	// Two commits into one working tree would fight over the index, so calls
-	// are serialised per tree — inside this process, which is one Claude Code
-	// session; two sessions in one repository are git's `index.lock` to sort out.
+	// Two commits into one working tree would fight over the index, so calls are
+	// serialised per tree, within this process — which is one Claude Code
+	// session. Two sessions are git's own `index.lock` to sort out.
 	mu    sync.Mutex
 	locks map[string]*repoLock
 }

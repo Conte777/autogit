@@ -4,6 +4,7 @@ import (
 	"runtime"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestLockTableEmptiesOut(t *testing.T) {
@@ -55,17 +56,23 @@ func TestOneRootIsOneLock(t *testing.T) {
 
 	// A waiter joins the entry that is already there instead of making its own,
 	// which is what keeps two spellings of one tree on one lock.
+	deadline := time.After(10 * time.Second)
 	for {
 		s.mu.Lock()
 		refs, entries := l.refs, len(s.locks)
 		s.mu.Unlock()
+		if entries != 1 {
+			t.Fatalf("%d entries in the lock table, want 1", entries)
+		}
 		if refs == 2 {
-			if entries != 1 {
-				t.Fatalf("%d entries in the lock table, want 1", entries)
-			}
 			break
 		}
-		runtime.Gosched()
+		select {
+		case <-deadline:
+			t.Fatal("the waiter never joined the held lock")
+		default:
+			runtime.Gosched()
+		}
 	}
 
 	unlock()

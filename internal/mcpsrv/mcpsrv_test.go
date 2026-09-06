@@ -198,7 +198,7 @@ func TestConcurrentCommitsSpellingTheRepoDifferentlyAreSerialised(t *testing.T) 
 	testSerialisation(t, dir, sub)
 }
 
-func testSerialisation(t *testing.T, dir, otherPath string) {
+func testSerialisation(t *testing.T, dir, secondSpelling string) {
 	t.Helper()
 
 	var inFlight, maxInFlight atomic.Int32
@@ -219,7 +219,7 @@ func testSerialisation(t *testing.T, dir, otherPath string) {
 	s := connect(t, builder(t, prov, nil))
 
 	var wg sync.WaitGroup
-	for _, path := range []string{dir, otherPath} {
+	for _, path := range []string{dir, secondSpelling} {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
