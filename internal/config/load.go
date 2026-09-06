@@ -131,7 +131,7 @@ func applyRepo(cfg *Config, data []byte, path string) error {
 	if err := decodeStrict(data, &repo); err != nil {
 		return configErr("%s: %v\n"+
 			"a repository config may only set preset, presets, protectedBranches, confirm, "+
-			"preparedMessage and diff; "+
+			"preparedMessage, diff.maxBytes and diff.context; "+
 			"provider and provider settings are global-only", path, err)
 	}
 
@@ -148,8 +148,8 @@ func applyRepo(cfg *Config, data []byte, path string) error {
 		cfg.PreparedMessage = *repo.PreparedMessage
 	}
 	if len(repo.Diff) > 0 {
-		if err := decodeStrict(repo.Diff, &cfg.Diff); err != nil {
-			return configErr("%s: diff: %v", path, err)
+		if err := applyRepoDiff(&cfg.Diff, repo.Diff, path); err != nil {
+			return err
 		}
 	}
 	if len(repo.Presets) > 0 {
@@ -158,6 +158,67 @@ func applyRepo(cfg *Config, data []byte, path string) error {
 	}
 	cfg.sources = append(cfg.sources, path)
 	return nil
+}
+
+// repoDiff is the diff whitelist for a repository file. The keys left here can
+// only shorten the diff in a way the diff itself reports: truncation writes the
+// stat and a note into the very text the model reads.
+type repoDiff struct {
+	MaxBytes *int `json:"maxBytes,omitempty"`
+	Context  *int `json:"context,omitempty"`
+}
+
+// diffKeysGlobalOnly are the diff keys a repository file may not set. Each drops
+// the body of a change while the file list stays complete, so a repository could
+// hand the model a diff that describes nothing and says so nowhere.
+var diffKeysGlobalOnly = []string{"excludePathspecs", "ignoreSubmodules"}
+
+func applyRepoDiff(diff *Diff, data []byte, path string) error {
+	if key, found := findGlobalOnlyDiffKey(data); found {
+		return configErr("%s: diff.%s is global-only: it hides the body of a change from the "+
+			"model while the file list stays complete, so the generated message would "+
+			"describe nothing and say so nowhere", path, key)
+	}
+	var repo repoDiff
+	if err := decodeStrict(data, &repo); err != nil {
+		return configErr("%s: diff: %v\n"+
+			"a repository config may only set diff.maxBytes and diff.context", path, err)
+	}
+	if repo.MaxBytes != nil {
+		// Only downwards: a budget raised by a cloned repo is a diff read large
+		// enough to exhaust memory before anything is generated.
+		if *repo.MaxBytes < 1 {
+			return configErr("%s: diff.maxBytes must be positive in a repository config; "+
+				"0 or less means an unbounded diff read, which is global-only", path)
+		}
+		if diff.MaxBytes > 0 && *repo.MaxBytes > diff.MaxBytes {
+			return configErr("%s: diff.maxBytes must not exceed %d, the budget already in effect; "+
+				"a repository may shrink the diff budget, not grow it", path, diff.MaxBytes)
+		}
+		diff.MaxBytes = *repo.MaxBytes
+	}
+	if repo.Context != nil {
+		diff.Context = *repo.Context
+	}
+	return nil
+}
+
+// findGlobalOnlyDiffKey reports a global-only key present in a repository diff
+// object. The match is case-insensitive because the decoder's own field
+// matching is, so `ExcludePathspecs` must not slip past with a vaguer error.
+func findGlobalOnlyDiffKey(data []byte) (string, bool) {
+	var keys map[string]json.RawMessage
+	if err := json.Unmarshal(data, &keys); err != nil {
+		return "", false
+	}
+	for key := range keys {
+		for _, banned := range diffKeysGlobalOnly {
+			if strings.EqualFold(key, banned) {
+				return key, true
+			}
+		}
+	}
+	return "", false
 }
 
 // takePresetLayer moves the overrides just decoded into the layer list, so the

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -601,5 +602,96 @@ func TestRepoLayerKeepsAPromptPathItDoesNotDeclare(t *testing.T) {
 	}
 	if p.Commit.MaxSubject != 50 {
 		t.Errorf("MaxSubject = %d, want the repo override", p.Commit.MaxSubject)
+	}
+}
+
+func TestRepoFileCannotHideDiffBodies(t *testing.T) {
+	for _, body := range []string{
+		`{"diff":{"excludePathspecs":[":(exclude)*.go"]}}`,
+		`{"diff":{"ExcludePathspecs":[":(exclude)*.go"]}}`,
+		`{"diff":{"ignoreSubmodules":true}}`,
+	} {
+		repo := t.TempDir()
+		writeFile(t, repo, ".autogit.json", body)
+
+		_, err := config.Load(config.Options{RepoRoot: repo, Env: envOf(nil)})
+		if err == nil {
+			t.Fatalf("%s hid part of the diff from the model and was accepted", body)
+		}
+		if !strings.Contains(err.Error(), "global-only") ||
+			!strings.Contains(err.Error(), "describe nothing") {
+			t.Errorf("%s: err = %v, want it to say the key is global-only and why", body, err)
+		}
+	}
+}
+
+// A malformed value is a typo, not an attempt to hide the diff, and must not be
+// reported as one.
+func TestRepoDiffTypeErrorIsNotReportedAsHiding(t *testing.T) {
+	repo := t.TempDir()
+	writeFile(t, repo, ".autogit.json", `{"diff":{"maxBytes":"big"}}`)
+
+	_, err := config.Load(config.Options{RepoRoot: repo, Env: envOf(nil)})
+	if err == nil {
+		t.Fatal(`"maxBytes":"big" was accepted`)
+	}
+	if strings.Contains(err.Error(), "global-only") {
+		t.Errorf("err = %v, want a plain type error", err)
+	}
+}
+
+func TestRepoFileCannotGrowTheDiffBudget(t *testing.T) {
+	for _, body := range []string{
+		`{"diff":{"maxBytes":2000000000}}`,
+		`{"diff":{"maxBytes":0}}`,
+	} {
+		repo := t.TempDir()
+		writeFile(t, repo, ".autogit.json", body)
+
+		_, err := config.Load(config.Options{RepoRoot: repo, Env: envOf(nil)})
+		if err == nil {
+			t.Fatalf("%s grew the diff read budget from an untrusted file", body)
+		}
+	}
+}
+
+func TestGlobalFileMaySetExcludePathspecs(t *testing.T) {
+	globalDir, repo := t.TempDir(), t.TempDir()
+	global := writeFile(t, globalDir, "config.json",
+		`{"diff":{"excludePathspecs":[":(exclude)vendor/*"],"ignoreSubmodules":false}}`)
+	writeFile(t, repo, ".autogit.json", `{"diff":{"maxBytes":2048}}`)
+
+	cfg, err := config.Load(config.Options{GlobalPath: global, RepoRoot: repo, Env: envOf(nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{":(exclude)vendor/*"}
+	if !slices.Equal(cfg.Diff.ExcludePathspecs, want) {
+		t.Errorf("Diff.ExcludePathspecs = %v, want %v", cfg.Diff.ExcludePathspecs, want)
+	}
+	if cfg.Diff.IgnoreSubmodules {
+		t.Error("Diff.IgnoreSubmodules = true, want the global value")
+	}
+	if cfg.Diff.MaxBytes != 2048 {
+		t.Errorf("Diff.MaxBytes = %d, want the repo value", cfg.Diff.MaxBytes)
+	}
+}
+
+func TestRepoDiffTuningKeepsTheGlobalOnlyKeys(t *testing.T) {
+	repo := t.TempDir()
+	writeFile(t, repo, ".autogit.json", `{"diff":{"maxBytes":2048,"context":1}}`)
+
+	cfg, err := config.Load(config.Options{RepoRoot: repo, Env: envOf(nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(cfg.Diff.ExcludePathspecs, config.Default().Diff.ExcludePathspecs) {
+		t.Errorf("Diff.ExcludePathspecs = %v, want the built-in list", cfg.Diff.ExcludePathspecs)
+	}
+	if !cfg.Diff.IgnoreSubmodules {
+		t.Error("Diff.IgnoreSubmodules was flipped by a repo file that never mentioned it")
+	}
+	if cfg.Diff.MaxBytes != 2048 || cfg.Diff.Context != 1 {
+		t.Errorf("Diff = %+v, want the repo values", cfg.Diff)
 	}
 }

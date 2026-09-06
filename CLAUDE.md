@@ -18,7 +18,7 @@ claude plugin validate ./plugins/autogit && claude plugin validate .   # plugin 
 - `schema/config.schema.json` is generated from the Go types in `internal/config`. Touch a config struct → regenerate it (`go run ./cmd/autogit schema > schema/config.schema.json`), or CI fails on the diff.
 - No `fmt.Print*` outside `internal/ui` and `cmd/` — forbidigo enforces it. A stray write to stdout lands in the MCP server's JSON-RPC stream and kills the session.
 - API keys come from the environment only (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `AUTOGIT_API_KEY`). A key in a config file is a startup error, not a warning.
-- A repository `.autogit.json` is untrusted input: `provider` and `providers.*` are global-only, unknown keys are errors everywhere. Do not relax either without a reason — the first is arbitrary code execution, the second silently disables branch protection on a typo.
+- A repository `.autogit.json` is untrusted input: `provider`, `providers.*`, `diff.excludePathspecs` and `diff.ignoreSubmodules` are global-only, unknown keys are errors everywhere. Do not relax either without a reason — the provider keys are arbitrary code execution, the diff keys hide the changed code from the model while the file list still looks complete, and an ignored unknown key silently disables branch protection on a typo.
 - The exit codes in `internal/cli/exit.go` are a public contract; scripts and the Claude Code hook branch on them.
 
 ## Layering
