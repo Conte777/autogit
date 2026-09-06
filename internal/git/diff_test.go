@@ -3,6 +3,7 @@ package git
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -161,5 +162,43 @@ func TestShrinkFallsBackToStatOnly(t *testing.T) {
 	}
 	if !strings.Contains(got, "a.txt") {
 		t.Errorf("shrink dropped the --stat block:\n%s", got)
+	}
+}
+
+func TestStagedDiffFarOverBudgetReadsBoundedMemory(t *testing.T) {
+	ctx := context.Background()
+	dir := newRepo(t)
+	const size = 16 << 20
+	write(t, dir, "big.txt", strings.Repeat("a line of vendored noise\n", size/25))
+	runGit(t, dir, "add", ".")
+	repo := open(t, dir)
+
+	const maxBytes = 4000
+	var before, after runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&before)
+	d, err := repo.StagedDiff(ctx, DiffOptions{MaxBytes: maxBytes, Context: 3})
+	runtime.ReadMemStats(&after)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if allocated := after.TotalAlloc - before.TotalAlloc; allocated > size/8 {
+		t.Errorf("StagedDiff allocated %d bytes for a %d-byte diff, want a bound tied to the %d budget",
+			allocated, size, maxBytes)
+	}
+	if !d.Truncated {
+		t.Error("Truncated = false for a diff far over the budget")
+	}
+	if len(d.Text) > maxBytes {
+		t.Errorf("diff text is %d bytes, over the %d budget", len(d.Text), maxBytes)
+	}
+	if len(d.Files) != 1 || d.Files[0] != "big.txt" {
+		t.Errorf("Files = %v, want the complete list", d.Files)
+	}
+	if !strings.Contains(d.Text, "big.txt |") {
+		t.Errorf("--stat block missing:\n%s", d.Text)
+	}
+	if strings.Contains(d.Text, "diff --git") {
+		t.Error("a body that was never read whole made it into the text")
 	}
 }

@@ -109,6 +109,11 @@ func (r *Repo) commitTimeout() time.Duration {
 }
 
 func (r *Repo) run(ctx context.Context, timeout time.Duration, stdin string, args ...string) (string, error) {
+	out, _, err := r.runBounded(ctx, timeout, 0, stdin, args...)
+	return out, err
+}
+
+func (r *Repo) runBounded(ctx context.Context, timeout time.Duration, limit int, stdin string, args ...string) (string, bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -118,18 +123,47 @@ func (r *Repo) run(ctx context.Context, timeout time.Duration, stdin string, arg
 	if stdin != "" {
 		cmd.Stdin = strings.NewReader(stdin)
 	}
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
+	stdout := &capped{limit: limit, stop: cancel}
+	var stderr bytes.Buffer
+	cmd.Stdout = stdout
 	cmd.Stderr = &stderr
 
-	if err := cmd.Run(); err != nil {
+	err := cmd.Run()
+	if stdout.over {
+		return stdout.String(), true, nil
+	}
+	if err != nil {
 		if ctx.Err() != nil {
 			err = fmt.Errorf("%w (%s)", ctx.Err(), timeout)
 		}
-		return stdout.String(), &ExecError{Args: args, Stderr: strings.TrimSpace(stderr.String()), Err: err}
+		return stdout.String(), false, &ExecError{Args: args, Stderr: strings.TrimSpace(stderr.String()), Err: err}
 	}
-	return stdout.String(), nil
+	return stdout.String(), false, nil
 }
+
+type capped struct {
+	limit int
+	stop  context.CancelFunc
+	buf   []byte
+	over  bool
+}
+
+func (c *capped) Write(p []byte) (int, error) {
+	if room := c.limit - len(c.buf); c.limit > 0 && room < len(p) {
+		if room > 0 {
+			c.buf = append(c.buf, p[:room]...)
+		}
+		if !c.over {
+			c.over = true
+			c.stop()
+		}
+		return len(p), nil
+	}
+	c.buf = append(c.buf, p...)
+	return len(p), nil
+}
+
+func (c *capped) String() string { return string(c.buf) }
 
 func (r *Repo) env() []string {
 	// LC_ALL pins git's messages and porcelain wording to English: everything

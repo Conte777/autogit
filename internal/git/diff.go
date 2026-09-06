@@ -40,21 +40,27 @@ func (r *Repo) WorktreeDiff(ctx context.Context, opts DiffOptions) (Diff, error)
 	return r.diff(ctx, opts, []string{"diff", base})
 }
 
+const diffReadFactor = 8
+
 func (r *Repo) diff(ctx context.Context, opts DiffOptions, base []string) (Diff, error) {
 	files, err := r.diffFiles(ctx, base)
 	if err != nil || len(files) == 0 {
 		return Diff{Files: files}, err
 	}
 
-	body, err := r.run(ctx, defaultTimeout, "", r.diffArgs(opts, base, false)...)
+	limit := opts.MaxBytes * diffReadFactor
+	body, over, err := r.runBounded(ctx, defaultTimeout, limit, "", r.diffArgs(opts, base, false)...)
 	if err != nil {
 		return Diff{}, err
 	}
-	if opts.MaxBytes <= 0 || len(body) <= opts.MaxBytes {
+	if !over && (opts.MaxBytes <= 0 || len(body) <= opts.MaxBytes) {
 		return Diff{Files: files, Text: body}, nil
 	}
+	if over {
+		body = ""
+	}
 
-	stat, err := r.run(ctx, defaultTimeout, "", r.diffArgs(opts, base, true)...)
+	stat, _, err := r.runBounded(ctx, defaultTimeout, limit, "", r.diffArgs(opts, base, true)...)
 	if err != nil {
 		return Diff{}, err
 	}
