@@ -4,7 +4,9 @@ Binding for any agent session that changes code. Code never lands on `main` as a
 
 Code means anything under `cmd/`, `internal/`, `assets/`, `schema/`, or the build and CI files that gate them (`.golangci.yml`, `.goreleaser.yaml`, `lefthook.yml`, `.github/workflows/`). A change touching only prose — README, `CONTEXT.md`, `docs/`, ADRs, issue bodies — is out of scope here and commits directly; it rejoins this workflow the moment it ships alongside code.
 
-## 1. Work in a worktree
+## 1. Claim the ticket, then work in a worktree
+
+A change that answers a ticket starts by claiming it — `gh issue edit <n> --add-assignee @me`, per _Taking an issue into work_ in `issue-tracker.md`. The tracker shows who the work belongs to from the moment it starts, not from the moment the PR appears.
 
 Check out a fresh worktree before the first edit — never edit code in the primary clone. Concurrent sessions would otherwise fight over one working tree.
 
