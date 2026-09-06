@@ -66,22 +66,38 @@ func Load(opts Options) (*Config, error) {
 	return &cfg, nil
 }
 
-// Files reports the config files Load would read for these options, in the
-// order it reads them. A path that does not exist is left out.
-func Files(opts Options) []string {
+// FileCheck is the verdict on one config file. Err is nil when the file
+// matches the schema of the layer that will decode it.
+type FileCheck struct {
+	Path string
+	Err  error
+}
+
+// CheckFiles validates every config file Load would read, in the order it
+// reads them. A file that is absent, or that cannot be read at all, is left
+// out: Load reports that one itself, with its own error.
+func CheckFiles(opts Options) []FileCheck {
 	if opts.Env == nil {
 		opts.Env = os.LookupEnv
 	}
-	var files []string
-	for _, path := range []string{globalPathFor(opts), repoPathFor(opts)} {
-		if path == "" {
+	var checks []FileCheck
+	for _, layer := range []struct {
+		path     string
+		validate func([]byte) error
+	}{
+		{globalPathFor(opts), ValidateDocument},
+		{repoPathFor(opts), validateRepoDocument},
+	} {
+		if layer.path == "" {
 			continue
 		}
-		if _, err := os.Stat(path); err == nil {
-			files = append(files, path)
+		data, ok, err := readIfExists(layer.path)
+		if err != nil || !ok {
+			continue
 		}
+		checks = append(checks, FileCheck{Path: layer.path, Err: layer.validate(data)})
 	}
-	return files
+	return checks
 }
 
 func globalPathFor(opts Options) string {

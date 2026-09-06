@@ -230,22 +230,25 @@ func TestDoctorReportsABrokenPreset(t *testing.T) {
 	}
 }
 
-// The strict decoder reports a wrong type as a Go conversion, and a name
-// outside an enum not at all — a provider nobody offers loads fine and only
-// fails at the round trip. The schema names the path and the value.
-func TestDoctorReportsAConfigThatFailsTheSchema(t *testing.T) {
+// A config the schema rejects can still load and still resolve — `timeout:
+// "-5m"` parses — so the report has to carry the failure into the exit code.
+func TestDoctorFailsOnAConfigThatFailsTheSchema(t *testing.T) {
 	dir := initRepo(t)
-	global := writeFile(t, t.TempDir(), "config.json", `{"provider":"gtp-5"}`)
+	writeFile(t, dir, ".autogit.json", `{"preset":5}`)
 
 	var stdout, stderr bytes.Buffer
 	out := ui.New(&stdout, &stderr, strings.NewReader(""), false)
-	g := &globals{repo: dir, confPath: global, env: envOf(nil)}
+	g := &globals{repo: dir, confPath: filepath.Join(dir, "absent.json"), env: envOf(nil)}
 
-	if err := runDoctor(context.Background(), g, out); err == nil {
-		t.Fatal("doctor passed a provider nobody offers")
+	err := runDoctor(context.Background(), g, out)
+	if err == nil {
+		t.Fatal("doctor passed a config the schema rejects")
+	}
+	if got := ExitCode(err); got != ExitConfig {
+		t.Errorf("ExitCode(%v) = %d, want %d", err, got, ExitConfig)
 	}
 	report := stdout.String() + stderr.String()
-	for _, want := range []string{"schema", global, "gtp-5"} {
+	for _, want := range []string{"schema       BROKEN", ".autogit.json"} {
 		if !strings.Contains(report, want) {
 			t.Errorf("report is missing %q:\n%s", want, report)
 		}

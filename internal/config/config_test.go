@@ -604,6 +604,41 @@ func TestRepoLayerKeepsAPromptPathItDoesNotDeclare(t *testing.T) {
 	}
 }
 
+func TestCheckFilesCoversWhatLoadReads(t *testing.T) {
+	global := writeFile(t, t.TempDir(), "global.json", `{"provider":"gtp-5"}`)
+	repo := t.TempDir()
+
+	opts := config.Options{RepoRoot: repo, GlobalPath: global, Env: envOf(nil)}
+	checks := config.CheckFiles(opts)
+	if len(checks) != 1 || checks[0].Path != global {
+		t.Fatalf("CheckFiles() = %+v, want one check for %s", checks, global)
+	}
+	if checks[0].Err == nil {
+		t.Error("a provider nobody offers passed the schema")
+	}
+
+	repoFile := writeFile(t, repo, config.FileName, `{"preset":"ticket"}`)
+	checks = config.CheckFiles(opts)
+	if len(checks) != 2 || checks[1].Path != repoFile {
+		t.Fatalf("CheckFiles() = %+v, want the repository file second", checks)
+	}
+	if checks[1].Err != nil {
+		t.Errorf("a partial repository config was rejected: %v", checks[1].Err)
+	}
+}
+
+// The report has to agree with Load: a repository file is decoded into the
+// whitelist, so the keys it may not carry are not "ok" either.
+func TestCheckFilesHoldsARepoFileToTheWhitelist(t *testing.T) {
+	repo := t.TempDir()
+	writeFile(t, repo, config.FileName, `{"providers":{"claude-cli":{"binary":"/tmp/x"}}}`)
+
+	checks := config.CheckFiles(config.Options{RepoRoot: repo, GlobalPath: "", Env: envOf(nil)})
+	if len(checks) != 1 || checks[0].Err == nil {
+		t.Fatalf("CheckFiles() = %+v; a global-only key passed in a repository config", checks)
+	}
+}
+
 // The generator marks a field required when its Go tag carries no omitempty,
 // which would make every hand-written config invalid — a config file is
 // partial, merged over the defaults.
@@ -619,17 +654,14 @@ func TestValidateDocumentAcceptsAPartialConfig(t *testing.T) {
 	}
 }
 
-func TestFilesAreTheOnesLoadReads(t *testing.T) {
-	global := writeFile(t, t.TempDir(), "global.json", `{"preset":"ticket"}`)
-	repo := t.TempDir()
-
-	opts := config.Options{RepoRoot: repo, GlobalPath: global, Env: envOf(nil)}
-	if got := config.Files(opts); len(got) != 1 || got[0] != global {
-		t.Errorf("Files() = %v, want [%s]", got, global)
+// clearRequired walks the schema by hand, so a keyword it does not visit would
+// smuggle a required list back in and reject a valid partial config.
+func TestSchemaRequiresNothing(t *testing.T) {
+	raw, err := config.Schema()
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	repoFile := writeFile(t, repo, config.FileName, `{"preset":"ticket"}`)
-	if got := config.Files(opts); len(got) != 2 || got[0] != global || got[1] != repoFile {
-		t.Errorf("Files() = %v, want [%s %s]", got, global, repoFile)
+	if strings.Contains(string(raw), `"required"`) {
+		t.Errorf("the schema still requires fields:\n%s", raw)
 	}
 }
