@@ -321,3 +321,17 @@ func quote(s string) string {
 	b, _ := json.Marshal(s)
 	return string(b)
 }
+
+func TestValidationFailureCarriesTheLastRejectedCandidate(t *testing.T) {
+	dir := repo(t)
+	prov := &mock.Provider{Replies: []string{"Feat: Add Thing", "Feat: Add Thing", "Feat: Add Thing"}}
+	s := connect(t, builder(t, prov, nil))
+
+	result := call(t, s, "commit", map[string]any{"repoPath": dir})
+	if !result.IsError {
+		t.Fatalf("an invalid message committed: %s", text(t, result))
+	}
+	if !strings.Contains(text(t, result), "Feat: Add Thing") {
+		t.Errorf("result = %q, want the rejected candidate", text(t, result))
+	}
+}

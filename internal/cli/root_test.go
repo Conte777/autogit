@@ -2,12 +2,14 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
 	"strings"
 	"testing"
 
+	"github.com/Conte777/autogit/internal/gen"
 	"github.com/Conte777/autogit/internal/ui"
 )
 
@@ -118,4 +120,28 @@ func runRoot(t *testing.T, args ...string) error {
 	root.SetOut(io.Discard)
 	root.SetErr(io.Discard)
 	return root.ExecuteContext(context.Background())
+}
+
+func TestErrorReportShowsTheLastRejectedCandidate(t *testing.T) {
+	var out strings.Builder
+	report(&out, &gen.FailureError{
+		Provider: "mock",
+		Attempts: 3,
+		Last:     "Feat: Add Thing",
+		Problems: []string{"subject must be lowercase"},
+	})
+
+	want := "autogit: no valid output after 3 attempts: subject must be lowercase\n" +
+		"         last candidate: Feat: Add Thing\n"
+	if out.String() != want {
+		t.Errorf("report() = %q, want %q", out.String(), want)
+	}
+}
+
+func TestErrorReportStaysOneLineForAnOrdinaryError(t *testing.T) {
+	var out strings.Builder
+	report(&out, errors.New("nothing staged"))
+	if out.String() != "autogit: nothing staged\n" {
+		t.Errorf("report() = %q", out.String())
+	}
 }
