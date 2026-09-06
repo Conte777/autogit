@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Conte777/autogit/internal/gen"
 	"github.com/Conte777/autogit/internal/provider/mock"
@@ -209,18 +210,45 @@ func TestGenerateReportsATimeoutAsAProviderFailure(t *testing.T) {
 	}
 }
 
-func TestDetailRendersTheLastRejectedCandidate(t *testing.T) {
+func TestLastCandidateRendersTheRejectedText(t *testing.T) {
 	err := &gen.FailureError{Provider: "mock", Attempts: 3, Last: "Feat: Add Thing", Problems: []string{"lowercase"}}
-	if got := gen.Detail(err); !strings.Contains(got, "Feat: Add Thing") {
-		t.Errorf("Detail() = %q, want the rejected candidate", got)
+	if got := gen.LastCandidate(err); !strings.Contains(got, "Feat: Add Thing") {
+		t.Errorf("LastCandidate() = %q, want the rejected candidate", got)
 	}
-	if got := gen.Detail(fmt.Errorf("wrapped: %w", err)); !strings.Contains(got, "Feat: Add Thing") {
-		t.Errorf("Detail() = %q, want the rejected candidate through a wrapper", got)
+	if got := gen.LastCandidate(fmt.Errorf("wrapped: %w", err)); !strings.Contains(got, "Feat: Add Thing") {
+		t.Errorf("LastCandidate() = %q, want the rejected candidate through a wrapper", got)
 	}
-	if got := gen.Detail(&gen.FailureError{Attempts: 1, Problems: []string{"empty"}}); got != "" {
-		t.Errorf("Detail() = %q, want empty when the model said nothing", got)
+	if got := gen.LastCandidate(&gen.FailureError{Attempts: 1, Problems: []string{"empty"}}); got != "" {
+		t.Errorf("LastCandidate() = %q, want empty when the model said nothing", got)
 	}
-	if got := gen.Detail(errors.New("plain")); got != "" {
-		t.Errorf("Detail() = %q, want empty for an ordinary error", got)
+	if got := gen.LastCandidate(errors.New("plain")); got != "" {
+		t.Errorf("LastCandidate() = %q, want empty for an ordinary error", got)
+	}
+}
+
+// A model that ignores the instruction answers with the whole diff, and the
+// hook feeds what it renders back into the conversation.
+func TestLastCandidateBoundsARunawayAnswer(t *testing.T) {
+	flood := strings.Repeat("ы", 5000)
+	got := gen.LastCandidate(&gen.FailureError{Attempts: 3, Last: flood, Problems: []string{"too long"}})
+	if len([]rune(got)) > 500 {
+		t.Errorf("LastCandidate() rendered %d runes, want a bounded line", len([]rune(got)))
+	}
+	if !strings.HasSuffix(got, "…") {
+		t.Errorf("LastCandidate() = %q, want the cut marked", got[max(0, len(got)-20):])
+	}
+	if !utf8.ValidString(got) {
+		t.Error("LastCandidate() cut a rune in half")
+	}
+}
+
+func TestExplainJoinsTheErrorAndTheCandidate(t *testing.T) {
+	err := &gen.FailureError{Attempts: 3, Last: "Feat: Add Thing", Problems: []string{"lowercase"}}
+	want := "no valid output after 3 attempts: lowercase\nlast candidate: Feat: Add Thing"
+	if got := gen.Explain(err); got != want {
+		t.Errorf("Explain() = %q, want %q", got, want)
+	}
+	if got := gen.Explain(errors.New("nothing staged")); got != "nothing staged" {
+		t.Errorf("Explain() = %q, want the error alone", got)
 	}
 }

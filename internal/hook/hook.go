@@ -96,10 +96,7 @@ func Run(ctx context.Context, in io.Reader, out io.Writer, env func(string) (str
 
 	message, err := run(ctx, cmd)
 	if err != nil {
-		message = fmt.Sprintf("autogit %s failed: %v", cmd.Kind, err)
-		if detail := gen.Detail(err); detail != "" {
-			message += "\n" + detail
-		}
+		message = fmt.Sprintf("autogit %s failed: %s", cmd.Kind, gen.Explain(err))
 	}
 	return block(out, message)
 }

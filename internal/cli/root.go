@@ -126,8 +126,8 @@ func Execute(ctx context.Context, v Version) int {
 
 func report(w io.Writer, err error) {
 	_, _ = fmt.Fprintf(w, "autogit: %v\n", err)
-	if detail := gen.Detail(err); detail != "" {
-		_, _ = fmt.Fprintf(w, "         %s\n", detail)
+	if candidate := gen.LastCandidate(err); candidate != "" {
+		_, _ = fmt.Fprintf(w, "         %s\n", candidate)
 	}
 }
 

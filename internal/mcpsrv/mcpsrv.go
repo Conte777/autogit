@@ -116,11 +116,11 @@ func (s *Server) run(ctx context.Context, repoPath string, fn func(*app.App) (st
 
 	a, err := s.build(ctx, repoPath)
 	if err != nil {
-		return errorResult(explain(err)), nil, nil
+		return errorResult(err.Error()), nil, nil
 	}
 	text, err := fn(a)
 	if err != nil {
-		return errorResult(explain(err)), nil, nil
+		return errorResult(gen.Explain(err)), nil, nil
 	}
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: text}}}, nil, nil
 }
@@ -136,15 +136,6 @@ func (s *Server) lock(repoPath string) func() {
 
 	m.Lock()
 	return m.Unlock
-}
-
-// explain writes the failure the way a model reading the tool result needs it:
-// the error, then the candidate validation rejected last.
-func explain(err error) string {
-	if detail := gen.Detail(err); detail != "" {
-		return err.Error() + "\n" + detail
-	}
-	return err.Error()
 }
 
 func errorResult(text string) *mcp.CallToolResult {

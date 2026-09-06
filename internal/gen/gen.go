@@ -73,16 +73,33 @@ func (e *FailureError) Error() string {
 	return fmt.Sprintf("no valid output after %d attempts: %s", e.Attempts, strings.Join(e.Problems, "; "))
 }
 
-// Detail returns the extra lines worth showing beside an error, or "". A
-// failed generation renders the candidate it rejected last: the surfaces that
-// answer a model — the hook and the MCP tool — need it to correct themselves,
-// and the terminal shows the same text.
-func Detail(err error) string {
-	var failure *FailureError
-	if errors.As(err, &failure) && failure.Last != "" {
-		return "last candidate: " + failure.Last
+// maxCandidate bounds how much of a rejected candidate an error report
+// carries. A model that ignores the instruction answers with a page of prose,
+// and the hook feeds its blocking message straight back into the conversation.
+const maxCandidate = 400
+
+// Explain renders an error together with the candidate it rejected last, ready
+// for a surface that hands the whole text to a model.
+func Explain(err error) string {
+	if candidate := LastCandidate(err); candidate != "" {
+		return err.Error() + "\n" + candidate
 	}
-	return ""
+	return err.Error()
+}
+
+// LastCandidate renders the labelled line for the candidate a failed
+// generation rejected last, or "" for any other error. Without it a caller
+// learns why the answer was wrong but never what the answer was.
+func LastCandidate(err error) string {
+	var failure *FailureError
+	if !errors.As(err, &failure) || failure.Last == "" {
+		return ""
+	}
+	last := []rune(failure.Last)
+	if len(last) > maxCandidate {
+		return "last candidate: " + string(last[:maxCandidate]) + "…"
+	}
+	return "last candidate: " + failure.Last
 }
 
 // DefaultCorrection is the follow-up sent after a rejected candidate.
