@@ -168,7 +168,7 @@
             "properties": {
               "prompt": {
                 "type": "string",
-                "description": "path to a prompt file; relative paths resolve against the config file that declares them"
+                "description": "path to a prompt file; relative paths resolve against the config file that declares them, and a repository config may only name a file inside the repository"
               },
               "types": {
                 "type": [

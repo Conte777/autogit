@@ -6,6 +6,8 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/Conte777/autogit/internal/preset"
@@ -87,8 +89,9 @@ func (p *PresetOverride) UnmarshalJSON(b []byte) error {
 }
 
 type presetLayer struct {
-	dir  string
-	defs map[string]PresetOverride
+	dir        string
+	confinedTo string
+	defs       map[string]PresetOverride
 }
 
 // Duration is a time.Duration written as a Go duration string.
@@ -163,10 +166,14 @@ func (c *Config) ResolvePreset() (preset.Preset, error) {
 		if !ok || len(override.raw) == 0 {
 			continue
 		}
+		commit, branch := p.Commit.Prompt, p.Branch.Prompt
+		p.Commit.Prompt, p.Branch.Prompt = "", ""
 		if err := decodeStrict(override.raw, &p); err != nil {
 			return preset.Preset{}, &Error{fmt.Errorf("presets.%s: %w", c.Preset, err)}
 		}
-		resolvePromptPaths(&p, layer.dir, c.env)
+		if err := layer.resolvePrompts(&p, commit, branch, c.env); err != nil {
+			return preset.Preset{}, &Error{fmt.Errorf("presets.%s: %w", c.Preset, err)}
+		}
 	}
 
 	if err := p.Validate(); err != nil {
@@ -184,7 +191,56 @@ func (c *Config) definedInLayers(name string) bool {
 	return false
 }
 
-func resolvePromptPaths(p *preset.Preset, dir string, env func(string) (string, bool)) {
-	p.Commit.Prompt = resolvePath(p.Commit.Prompt, dir, env)
-	p.Branch.Prompt = resolvePath(p.Branch.Prompt, dir, env)
+func (l presetLayer) resolvePrompts(p *preset.Preset, commit, branch string, env func(string) (string, bool)) error {
+	for _, entry := range []struct {
+		key       string
+		path      *string
+		inherited string
+	}{
+		{"commit.prompt", &p.Commit.Prompt, commit},
+		{"branch.prompt", &p.Branch.Prompt, branch},
+	} {
+		if *entry.path == "" {
+			*entry.path = entry.inherited
+			continue
+		}
+		resolved, err := l.promptPath(*entry.path, env)
+		if err != nil {
+			return fmt.Errorf("%s: %w", entry.key, err)
+		}
+		*entry.path = resolved
+	}
+	return nil
+}
+
+func (l presetLayer) promptPath(declared string, env func(string) (string, bool)) (string, error) {
+	if l.confinedTo != "" && !insideDir(declared, l.confinedTo) {
+		return "", fmt.Errorf("%q is outside the repository; "+
+			"a repository config may only name a prompt file inside the repository itself", declared)
+	}
+	return resolvePath(declared, l.dir, env), nil
+}
+
+func insideDir(path, dir string) bool {
+	if path == "~" || strings.HasPrefix(path, "~/") || filepath.IsAbs(path) {
+		return false
+	}
+	full := filepath.Join(dir, path)
+	if !under(dir, full) {
+		return false
+	}
+	target, err := filepath.EvalSymlinks(full)
+	if err != nil {
+		return true
+	}
+	realDir, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return false
+	}
+	return under(realDir, target)
+}
+
+func under(dir, path string) bool {
+	rel, err := filepath.Rel(dir, path)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }

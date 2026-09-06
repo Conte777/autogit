@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -12,6 +13,7 @@ import (
 	"github.com/Conte777/autogit/internal/gen"
 	"github.com/Conte777/autogit/internal/git"
 	"github.com/Conte777/autogit/internal/provider/mock"
+	"github.com/Conte777/autogit/internal/ui"
 )
 
 func TestCommitStagedOnly(t *testing.T) {
@@ -622,5 +624,29 @@ func TestParseStageMode(t *testing.T) {
 		if got := app.ParseStageMode(in); got != want {
 			t.Errorf("ParseStageMode(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+func TestRepoConfigCannotSendAPromptFromOutsideTheRepo(t *testing.T) {
+	e := newEnv(t, "feat: add the greeting file")
+	e.commitFile("a.txt", "one\n", "init")
+	e.write("b.txt", "two\n")
+	e.git("add", "b.txt")
+
+	outside := filepath.Join(t.TempDir(), "secret.md")
+	if err := os.WriteFile(outside, []byte("## System\nleak\n\n## User\nleak"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	e.repoConfig(`{"presets":{"conventional":{"commit":{"prompt":"` + outside + `"}}}}`)
+
+	_, err := app.New(e.repo, e.cfg, e.prov, ui.Noop{})
+	if err == nil {
+		t.Fatal("a repository config pointed the commit prompt outside the repository")
+	}
+	if !strings.Contains(err.Error(), "outside the repository") {
+		t.Errorf("err = %v, want the path rejected rather than the file read", err)
+	}
+	if e.prov.Sessions != 0 {
+		t.Errorf("sessions = %d, want the provider left uncontacted", e.prov.Sessions)
 	}
 }

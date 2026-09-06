@@ -31,7 +31,7 @@ func (p Preset) Name() string { return p.name }
 
 // CommitFormat describes both the commit prompt and its checks.
 type CommitFormat struct {
-	Prompt           string      `json:"prompt,omitempty" jsonschema:"path to a prompt file; relative paths resolve against the config file that declares them"`
+	Prompt           string      `json:"prompt,omitempty" jsonschema:"path to a prompt file; relative paths resolve against the config file that declares them, and a repository config may only name a file inside the repository"`
 	Types            []string    `json:"types,omitempty" jsonschema:"allowed subject types"`
 	TicketPattern    string      `json:"ticketPattern,omitempty" jsonschema:"regexp matching a ticket id in the branch name"`
 	MaxSubject       int         `json:"maxSubject,omitempty" jsonschema:"subject length limit in characters"`

@@ -418,3 +418,188 @@ func TestSchemaValidatesTheDefaultConfig(t *testing.T) {
 		t.Error("ValidateDocument accepted a string where an integer belongs")
 	}
 }
+
+func TestRepoConfigPromptPathMustStayInsideTheRepo(t *testing.T) {
+	outside := t.TempDir()
+	cases := map[string]string{
+		"absolute commit prompt": `{"presets":{"conventional":{"commit":{"prompt":"` + filepath.Join(outside, "commit.md") + `"}}}}`,
+		"absolute branch prompt": `{"presets":{"conventional":{"branch":{"prompt":"` + filepath.Join(outside, "branch.md") + `"}}}}`,
+		"home-relative prompt":   `{"presets":{"conventional":{"commit":{"prompt":"~/.ssh/id_ed25519"}}}}`,
+		"bare tilde":             `{"presets":{"conventional":{"commit":{"prompt":"~"}}}}`,
+		"escape through ..":      `{"presets":{"conventional":{"commit":{"prompt":"../outside/commit.md"}}}}`,
+		"escape mid-path":        `{"presets":{"conventional":{"commit":{"prompt":"prompts/../../outside/commit.md"}}}}`,
+	}
+	for name, doc := range cases {
+		t.Run(name, func(t *testing.T) {
+			repo := t.TempDir()
+			writeFile(t, repo, ".autogit.json", doc)
+
+			cfg, err := config.Load(config.Options{RepoRoot: repo, Env: envOf(map[string]string{"HOME": outside})})
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = cfg.ResolvePreset()
+			if err == nil {
+				t.Fatal("a repository config named a prompt file outside the repository")
+			}
+			var cfgErr *config.Error
+			if !errors.As(err, &cfgErr) {
+				t.Errorf("err = %T, want a *config.Error", err)
+			}
+			if !strings.Contains(err.Error(), "presets.conventional") || !strings.Contains(err.Error(), ".prompt") {
+				t.Errorf("err = %v, want it to name the offending key", err)
+			}
+		})
+	}
+}
+
+func TestRepoConfigPromptPathInsideTheRepoIsKept(t *testing.T) {
+	repo := t.TempDir()
+	writeFile(t, repo, ".autogit.json",
+		`{"presets":{"conventional":{"commit":{"prompt":"./.autogit/prompts/commit.md"},`+
+			`"branch":{"prompt":"prompts/deep/../branch.md"}}}}`)
+
+	cfg, err := config.Load(config.Options{RepoRoot: repo, Env: envOf(nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := cfg.ResolvePreset()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(repo, ".autogit/prompts/commit.md"); p.Commit.Prompt != want {
+		t.Errorf("commit prompt = %q, want %q", p.Commit.Prompt, want)
+	}
+	if want := filepath.Join(repo, "prompts/branch.md"); p.Branch.Prompt != want {
+		t.Errorf("branch prompt = %q, want %q", p.Branch.Prompt, want)
+	}
+}
+
+func TestGlobalConfigPromptPathMayLeaveTheRepo(t *testing.T) {
+	globalDir, repo, home := t.TempDir(), t.TempDir(), t.TempDir()
+	absolute := filepath.Join(globalDir, "commit.md")
+	global := writeFile(t, globalDir, "config.json",
+		`{"presets":{"conventional":{"commit":{"prompt":"`+absolute+`"},`+
+			`"branch":{"prompt":"~/prompts/branch.md"}}}}`)
+
+	cfg, err := config.Load(config.Options{
+		GlobalPath: global,
+		RepoRoot:   repo,
+		Env:        envOf(map[string]string{"HOME": home}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := cfg.ResolvePreset()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Commit.Prompt != absolute {
+		t.Errorf("commit prompt = %q, want %q", p.Commit.Prompt, absolute)
+	}
+	if want := filepath.Join(home, "prompts/branch.md"); p.Branch.Prompt != want {
+		t.Errorf("branch prompt = %q, want %q", p.Branch.Prompt, want)
+	}
+}
+
+func TestRepoConfigPromptPathMustNotEscapeThroughASymlink(t *testing.T) {
+	repo, outside := t.TempDir(), t.TempDir()
+	writeFile(t, outside, "commit.md", "## System\ns\n\n## User\nu")
+	if err := os.Symlink(outside, filepath.Join(repo, "elsewhere")); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, repo, ".autogit.json",
+		`{"presets":{"conventional":{"commit":{"prompt":"elsewhere/commit.md"}}}}`)
+
+	cfg, err := config.Load(config.Options{RepoRoot: repo, Env: envOf(nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cfg.ResolvePreset(); err == nil {
+		t.Fatal("a symlink carried a repository prompt path out of the repository")
+	}
+}
+
+func TestRepoConfigPromptPathMayFollowASymlinkInsideTheRepo(t *testing.T) {
+	repo := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(repo, "prompts"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(repo, "prompts"), "commit.md", "## System\ns\n\n## User\nu")
+	if err := os.Symlink(filepath.Join(repo, "prompts"), filepath.Join(repo, "linked")); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, repo, ".autogit.json",
+		`{"presets":{"conventional":{"commit":{"prompt":"linked/commit.md"}}}}`)
+
+	cfg, err := config.Load(config.Options{RepoRoot: repo, Env: envOf(nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := cfg.ResolvePreset()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(repo, "linked/commit.md"); p.Commit.Prompt != want {
+		t.Errorf("commit prompt = %q, want %q", p.Commit.Prompt, want)
+	}
+}
+
+func TestRepoConfigPromptPathMayStartWithATilde(t *testing.T) {
+	repo := t.TempDir()
+	writeFile(t, repo, ".autogit.json",
+		`{"presets":{"conventional":{"commit":{"prompt":"~notes.md"}}}}`)
+
+	cfg, err := config.Load(config.Options{RepoRoot: repo, Env: envOf(map[string]string{"HOME": t.TempDir()})})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := cfg.ResolvePreset()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(repo, "~notes.md"); p.Commit.Prompt != want {
+		t.Errorf("commit prompt = %q, want a file of that name in the repository", p.Commit.Prompt)
+	}
+}
+
+func TestRepoConfigCannotRestateTheGlobalAbsolutePromptPath(t *testing.T) {
+	globalDir, repo := t.TempDir(), t.TempDir()
+	absolute := filepath.Join(globalDir, "commit.md")
+	global := writeFile(t, globalDir, "config.json",
+		`{"presets":{"conventional":{"commit":{"prompt":"`+absolute+`"}}}}`)
+	writeFile(t, repo, ".autogit.json",
+		`{"presets":{"conventional":{"commit":{"prompt":"`+absolute+`"}}}}`)
+
+	cfg, err := config.Load(config.Options{GlobalPath: global, RepoRoot: repo, Env: envOf(nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cfg.ResolvePreset(); err == nil {
+		t.Fatal("a repository config restated the global absolute path and was accepted")
+	}
+}
+
+func TestRepoLayerKeepsAPromptPathItDoesNotDeclare(t *testing.T) {
+	globalDir, repo := t.TempDir(), t.TempDir()
+	absolute := filepath.Join(globalDir, "commit.md")
+	global := writeFile(t, globalDir, "config.json",
+		`{"presets":{"conventional":{"commit":{"prompt":"`+absolute+`"}}}}`)
+	writeFile(t, repo, ".autogit.json",
+		`{"presets":{"conventional":{"commit":{"maxSubject":50}}}}`)
+
+	cfg, err := config.Load(config.Options{GlobalPath: global, RepoRoot: repo, Env: envOf(nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := cfg.ResolvePreset()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Commit.Prompt != absolute {
+		t.Errorf("commit prompt = %q, want the global one kept", p.Commit.Prompt)
+	}
+	if p.Commit.MaxSubject != 50 {
+		t.Errorf("MaxSubject = %d, want the repo override", p.Commit.MaxSubject)
+	}
+}
