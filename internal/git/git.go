@@ -14,6 +14,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/Conte777/autogit/internal/proc"
 )
 
 // EmptyTree is git's well-known empty tree object. `git diff HEAD` fails in a
@@ -119,6 +121,8 @@ func (r *Repo) runBounded(ctx context.Context, timeout time.Duration, limit int,
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "git", args...)
+	proc.Isolate(cmd)
+	cmd.Cancel = func() error { return proc.Kill(cmd) }
 	cmd.Dir = r.root
 	cmd.Env = r.env()
 	if stdin != "" {

@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/Conte777/autogit/internal/gen"
+	"github.com/Conte777/autogit/internal/proc"
 )
 
 const (
@@ -68,7 +69,7 @@ func (p *Provider) args(system string) []string {
 func (p *Provider) Start(ctx context.Context, system string) (gen.Session, error) {
 	cmd := exec.Command(p.binary(), p.args(system)...) //nolint:noctx // ctx drives Send/Close, not the process lifetime
 	cmd.Env = childEnv()
-	setProcessGroup(cmd)
+	proc.Isolate(cmd)
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -90,6 +91,7 @@ func (p *Provider) Start(ctx context.Context, system string) (gen.Session, error
 		cmd:        cmd,
 		stdin:      stdin,
 		events:     make(chan event, 64),
+		gone:       make(chan struct{}),
 		stderrDone: make(chan struct{}),
 	}
 	go s.readStdout(stdout)
@@ -122,6 +124,9 @@ type session struct {
 	cmd    *exec.Cmd
 	stdin  io.WriteCloser
 	events chan event
+	// gone releases the stdout reader once nobody is draining events any more.
+	gone     chan struct{}
+	goneOnce sync.Once
 
 	stderrMu   sync.Mutex
 	stderr     []string
@@ -189,7 +194,11 @@ func (s *session) readStdout(r io.Reader) {
 		if err := json.Unmarshal(sc.Bytes(), &ev); err != nil {
 			continue
 		}
-		s.events <- ev
+		select {
+		case s.events <- ev:
+		case <-s.gone:
+			return
+		}
 	}
 	if err := sc.Err(); err != nil {
 		s.note("autogit: cannot read claude stdout: " + err.Error())
@@ -251,13 +260,20 @@ func (s *session) Close() error {
 				s.closeErr = err
 			}
 		case <-time.After(closeGrace):
-			killGroup(s.cmd)
+			s.kill()
 			<-done
 		}
+		s.release()
 	})
 	return s.closeErr
 }
 
 func (s *session) kill() {
-	killGroup(s.cmd)
+	s.release()
+	_ = proc.Kill(s.cmd)
+}
+
+// release unblocks the stdout reader, whose events nobody will read again.
+func (s *session) release() {
+	s.goneOnce.Do(func() { close(s.gone) })
 }
