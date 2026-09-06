@@ -39,11 +39,10 @@ func runDoctor(ctx context.Context, g *globals, out *ui.UI) error {
 		out.Print("repository   none (%v)", err)
 	}
 
-	cfg, err := config.Load(config.Options{
-		RepoRoot:   repoRoot,
-		GlobalPath: g.confPath,
-		Env:        g.env,
-	})
+	opts := config.Options{RepoRoot: repoRoot, GlobalPath: g.confPath, Env: g.env}
+	schemaErr := reportSchema(out, config.CheckFiles(opts))
+
+	cfg, err := config.Load(opts)
 	if err != nil {
 		out.Print("config       BROKEN: %v", err)
 		return err
@@ -70,7 +69,32 @@ func runDoctor(ctx context.Context, g *globals, out *ui.UI) error {
 	out.Print("preset       %s", cfg.Preset)
 	out.Print("provider     %s (model %s)", cfg.Provider, cfg.Model())
 
-	return checkProvider(ctx, cfg, g.env, out)
+	if err := checkProvider(ctx, cfg, g.env, out); err != nil {
+		return err
+	}
+	// A document the schema rejects still loaded, so the report above is worth
+	// finishing — but `timeout: "-5m"` parses and then kills every generation,
+	// and a caller branching on the exit code has to hear about it.
+	return schemaErr
+}
+
+// reportSchema prints the verdict on each config file and returns the first
+// failure, so that a config nothing else objects to still fails the run.
+func reportSchema(out *ui.UI, checks []config.FileCheck) error {
+	var first error
+	for _, c := range checks {
+		if c.Err == nil {
+			continue
+		}
+		out.Print("schema       BROKEN: %s: %v", c.Path, c.Err)
+		if first == nil {
+			first = &config.Error{Err: fmt.Errorf("%s: %w", c.Path, c.Err)}
+		}
+	}
+	if len(checks) > 0 && first == nil {
+		out.Print("schema       ok")
+	}
+	return first
 }
 
 func reportState(ctx context.Context, out *ui.UI, repo *git.Repo, passthrough bool) {

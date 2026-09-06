@@ -71,9 +71,6 @@
           "description": "git pathspecs kept out of the diff body; the file list stays complete"
         }
       },
-      "required": [
-        "ignoreSubmodules"
-      ],
       "additionalProperties": false
     },
     "providers": {
@@ -149,12 +146,6 @@
           "additionalProperties": false
         }
       },
-      "required": [
-        "anthropic",
-        "claude-cli",
-        "openai",
-        "gemini"
-      ],
       "additionalProperties": false
     },
     "presets": {
@@ -217,9 +208,6 @@
                     "description": "auto: ask for a body from this many changed lines"
                   }
                 },
-                "required": [
-                  "mode"
-                ],
                 "additionalProperties": false
               },
               "scope": {
@@ -252,19 +240,9 @@
                     "description": "suggest: how many commits to read"
                   }
                 },
-                "required": [
-                  "mode"
-                ],
                 "additionalProperties": false
               }
             },
-            "required": [
-              "lowercaseDesc",
-              "noTrailingPeriod",
-              "footers",
-              "body",
-              "scope"
-            ],
             "additionalProperties": false
           },
           "branch": {
@@ -299,21 +277,11 @@
             "additionalProperties": false
           }
         },
-        "required": [
-          "commit",
-          "branch"
-        ],
         "additionalProperties": false
       }
     }
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "autogit configuration",
-  "required": [
-    "confirm",
-    "preparedMessage",
-    "diff",
-    "providers"
-  ],
   "additionalProperties": false
 }

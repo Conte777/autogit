@@ -232,15 +232,6 @@ func (r *Repo) HasCommits(ctx context.Context) bool {
 	return err == nil
 }
 
-// Head returns the current commit hash, or "" when there are no commits.
-func (r *Repo) Head(ctx context.Context) string {
-	out, err := r.run(ctx, defaultTimeout, "", "rev-parse", "HEAD")
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(out)
-}
-
 // StageAll runs `git add -A`.
 func (r *Repo) StageAll(ctx context.Context) error {
 	_, err := r.run(ctx, defaultTimeout, "", "add", "-A", "--", ".")
