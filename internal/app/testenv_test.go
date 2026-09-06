@@ -5,7 +5,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/Conte777/autogit/internal/app"
@@ -21,6 +23,9 @@ type env struct {
 	repo *git.Repo
 	prov *mock.Provider
 	cfg  *config.Config
+	// progress is nil unless a test wants to watch the reports; ui.Noop is
+	// what every other test gets.
+	progress ui.Progress
 }
 
 func newEnv(t *testing.T, replies ...string) *env {
@@ -48,7 +53,11 @@ func (e *env) app() *app.App { return e.answering(ui.Noop{}) }
 // answering builds an App whose questions are answered by a scripted prompter.
 func (e *env) answering(p ui.Prompter) *app.App {
 	e.t.Helper()
-	a, err := app.New(e.repo, e.cfg, e.prov, p)
+	progress := e.progress
+	if progress == nil {
+		progress = ui.Noop{}
+	}
+	a, err := app.New(e.repo, e.cfg, e.prov, p, progress)
 	if err != nil {
 		e.t.Fatal(err)
 	}
@@ -146,3 +155,35 @@ type scripted struct {
 func (s scripted) Confirm(string, bool) (bool, error)         { return s.confirm, nil }
 func (s scripted) Choose(string, []ui.Option) (string, error) { return s.choice, nil }
 func (scripted) Interactive() bool                            { return true }
+
+// reports records what was started and how the run and the report interleaved,
+// which is the part of the wiring a unit test can actually see.
+type reports struct {
+	mu      sync.Mutex
+	started []string
+	running int
+}
+
+func (r *reports) Start(label string) func() {
+	r.mu.Lock()
+	r.started = append(r.started, label)
+	r.running++
+	r.mu.Unlock()
+	return func() {
+		r.mu.Lock()
+		r.running--
+		r.mu.Unlock()
+	}
+}
+
+func (r *reports) labels() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return slices.Clone(r.started)
+}
+
+func (r *reports) live() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.running
+}

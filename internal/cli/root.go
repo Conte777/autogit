@@ -133,7 +133,7 @@ func report(w io.Writer, err error) {
 
 // build assembles everything an operation needs from flags, config and the
 // repository. It is the single place that decides what the run looks like.
-func build(ctx context.Context, g *globals, prompter ui.Prompter) (*app.App, error) {
+func build(ctx context.Context, g *globals, prompter ui.Prompter, progress ui.Progress) (*app.App, error) {
 	repo, err := openRepo(ctx, g.repo, prompter)
 	if err != nil {
 		return nil, err
@@ -154,7 +154,7 @@ func build(ctx context.Context, g *globals, prompter ui.Prompter) (*app.App, err
 		return nil, &config.Error{Err: err}
 	}
 
-	return app.New(repo, cfg, prov, prompter)
+	return app.New(repo, cfg, prov, prompter, progress)
 }
 
 // prompterFor picks who answers a question on the CLI. `--no-input` hands back
@@ -162,6 +162,17 @@ func build(ctx context.Context, g *globals, prompter ui.Prompter) (*app.App, err
 func prompterFor(g *globals, out *ui.UI) ui.Prompter {
 	if g.noInput {
 		return ui.Noop{}
+	}
+	return out
+}
+
+// progressFor picks who shows that a slow operation is running. Unlike
+// prompterFor, --no-input does not silence it: the flag is about questions.
+// It only drops the animation, because a run that cannot be asked anything is
+// a run nobody is watching draw.
+func progressFor(g *globals, out *ui.UI) ui.Progress {
+	if g.noInput {
+		return out.StaticProgress()
 	}
 	return out
 }

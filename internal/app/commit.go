@@ -120,21 +120,12 @@ func (a *App) Commit(ctx context.Context, req CommitRequest) (CommitResult, erro
 	if op != git.OpNone {
 		out.Message = prepared
 	}
-	if op != git.OpMerge {
-		diff, diffErr := a.repo.StagedDiff(ctx, a.diffOptions())
-		if diffErr != nil {
-			return CommitResult{}, diffErr
-		}
-		if diff.Empty() {
-			return CommitResult{}, ErrNothingToCommit
-		}
-		if op == git.OpNone {
-			result, genErr := a.generateMessage(ctx, branch, diff)
-			if genErr != nil {
-				return CommitResult{}, genErr
-			}
-			out.Message, out.Attempts = result.Value, result.Attempts
-		}
+	generated, attempts, msgErr := a.messageFor(ctx, op, branch)
+	if msgErr != nil {
+		return CommitResult{}, msgErr
+	}
+	if op == git.OpNone {
+		out.Message, out.Attempts = generated, attempts
 	}
 	if req.Preview {
 		return out, nil
@@ -151,6 +142,35 @@ func (a *App) Commit(ctx context.Context, req CommitRequest) (CommitResult, erro
 	out.Hash, out.ShortHash = landed.Hash, landed.ShortHash
 	out.Message = landed.Message
 	return out, nil
+}
+
+// messageFor checks that there is something to describe and, when git left no
+// message to reuse, generates one. It is its own method so that the progress
+// report is put down by a defer here rather than in Commit, where it would
+// still be spinning under confirmCommit's question.
+func (a *App) messageFor(ctx context.Context, op git.Operation, branch git.Branch) (string, int, error) {
+	if op == git.OpMerge {
+		return "", 0, nil
+	}
+	diff, err := a.repo.StagedDiff(ctx, a.diffOptions())
+	if err != nil {
+		return "", 0, err
+	}
+	if diff.Empty() {
+		return "", 0, ErrNothingToCommit
+	}
+	// The passthrough path never reaches the model, so the phrase would lie.
+	if op != git.OpNone {
+		return "", 0, nil
+	}
+	stop := a.progress.Start("Generating commit message…")
+	defer stop()
+
+	result, err := a.generateMessage(ctx, branch, diff)
+	if err != nil {
+		return "", 0, err
+	}
+	return result.Value, result.Attempts, nil
 }
 
 // preparedMessage returns the message git already wrote for this state, or the

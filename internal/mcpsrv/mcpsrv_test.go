@@ -327,7 +327,7 @@ func builder(t *testing.T, prov *mock.Provider, tweak func(*config.Config)) mcps
 		if tweak != nil {
 			tweak(&cfg)
 		}
-		return app.New(r, &cfg, prov, ui.Noop{})
+		return app.New(r, &cfg, prov, ui.Noop{}, ui.Noop{})
 	}
 }
 

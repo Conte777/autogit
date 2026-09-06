@@ -81,12 +81,14 @@ func (a *App) Branch(ctx context.Context, req BranchRequest) (BranchResult, erro
 		slug = validate.Slugify(desc, format.MaxWords)
 
 	case desc != "":
+		stop := a.progress.Start(branchProgressLabel)
 		answer, err := a.askBranch(ctx, prompt.BranchData{
 			Description: desc,
 			Types:       format.Types,
 			MaxWords:    format.MaxWords,
 			NeedType:    true,
 		})
+		stop()
 		if err != nil {
 			return BranchResult{}, err
 		}
@@ -94,21 +96,7 @@ func (a *App) Branch(ctx context.Context, req BranchRequest) (BranchResult, erro
 		slug = validate.Slugify(desc, format.MaxWords)
 
 	default:
-		diff, err := a.repo.WorktreeDiff(ctx, a.diffOptions())
-		if err != nil {
-			return BranchResult{}, err
-		}
-		if diff.Empty() {
-			return BranchResult{}, ErrNoBranchInput
-		}
-		answer, err := a.askBranch(ctx, prompt.BranchData{
-			Files:         diff.Files,
-			Diff:          diff.Text,
-			DiffTruncated: diff.Truncated,
-			Types:         format.Types,
-			MaxWords:      format.MaxWords,
-			NeedType:      ticket == "",
-		})
+		answer, err := a.branchFromDiff(ctx, format, ticket)
 		if err != nil {
 			return BranchResult{}, err
 		}
@@ -136,6 +124,35 @@ func (a *App) Branch(ctx context.Context, req BranchRequest) (BranchResult, erro
 		return BranchResult{}, err
 	}
 	return BranchResult{Name: name, Attempts: attempts}, nil
+}
+
+const branchProgressLabel = "Generating branch name…"
+
+// branchFromDiff covers the slow pair with one report: reading the worktree
+// diff is as much of the wait as the generation that follows it.
+func (a *App) branchFromDiff(
+	ctx context.Context,
+	format preset.BranchFormat,
+	ticket string,
+) (branchAnswer, error) {
+	stop := a.progress.Start(branchProgressLabel)
+	defer stop()
+
+	diff, err := a.repo.WorktreeDiff(ctx, a.diffOptions())
+	if err != nil {
+		return branchAnswer{}, err
+	}
+	if diff.Empty() {
+		return branchAnswer{}, ErrNoBranchInput
+	}
+	return a.askBranch(ctx, prompt.BranchData{
+		Files:         diff.Files,
+		Diff:          diff.Text,
+		DiffTruncated: diff.Truncated,
+		Types:         format.Types,
+		MaxWords:      format.MaxWords,
+		NeedType:      ticket == "",
+	})
 }
 
 type branchAnswer struct {

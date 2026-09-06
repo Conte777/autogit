@@ -23,16 +23,31 @@ type App struct {
 	// prompt is the one place that says whether there is anybody to ask.
 	// Required: a nil prompt is a wiring bug, not a quiet no.
 	prompt ui.Prompter
+	// progress is required for the same reason; ui.Noop is the silence.
+	progress ui.Progress
 }
 
 // New assembles an App. The preset is resolved here, so a broken one is a
 // construction error rather than a surprise halfway through a run.
-func New(repo *git.Repo, cfg *config.Config, prov gen.Provider, prompter ui.Prompter) (*App, error) {
+func New(
+	repo *git.Repo,
+	cfg *config.Config,
+	prov gen.Provider,
+	prompter ui.Prompter,
+	progress ui.Progress,
+) (*App, error) {
 	p, err := cfg.ResolvePreset()
 	if err != nil {
 		return nil, err
 	}
-	return &App{repo: repo, cfg: cfg, preset: p, provider: prov, prompt: prompter}, nil
+	return &App{
+		repo:     repo,
+		cfg:      cfg,
+		preset:   p,
+		provider: prov,
+		prompt:   prompter,
+		progress: progress,
+	}, nil
 }
 
 func (a *App) Root() string { return a.repo.Root() }

@@ -145,3 +145,19 @@ func TestErrorReportStaysOneLineForAnOrdinaryError(t *testing.T) {
 		t.Errorf("report() = %q", out.String())
 	}
 }
+
+// --no-input is about questions, not about the report: the run still says one
+// line, it just stops drawing.
+func TestNoInputKeepsTheReportAndDropsTheAnimation(t *testing.T) {
+	var errw strings.Builder
+	terminal := ui.New(io.Discard, &errw, strings.NewReader(""), true)
+
+	progressFor(&globals{noInput: true}, terminal).Start("Generating commit message…")()
+	if got := errw.String(); got != "Generating commit message…\n" {
+		t.Errorf("stderr = %q, want the one static line", got)
+	}
+
+	if progressFor(&globals{}, terminal) != ui.Progress(terminal) {
+		t.Error("a terminal run lost the animated report")
+	}
+}

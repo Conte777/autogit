@@ -45,7 +45,7 @@ func runMCP(ctx context.Context, g *globals) error {
 	mcpsrv.New(func(ctx context.Context, repoPath string) (*app.App, error) {
 		local := *g
 		local.repo = repoPath
-		return build(ctx, &local, ui.Noop{})
+		return build(ctx, &local, ui.Noop{}, ui.Noop{})
 	}).Register(server)
 
 	return server.Run(ctx, transport)

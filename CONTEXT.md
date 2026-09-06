@@ -174,6 +174,13 @@ It is not the answer to "is the user reachable": mcp has no terminal and yet
 reaches the user through Consent, which is why the two are separate.
 _Avoid_: interactive flag, no-input flag, tty
 
+**Progress**:
+What tells the terminal that an operation is running, so a wait cannot be
+mistaken for a hang. It says nothing about how the generation is going — only
+that it has not stopped. Separate from the Prompter: `--no-input` removes the
+questions and keeps the report, and a run with no terminal still says one line.
+_Avoid_: spinner, status, progress bar, throbber
+
 **Operation**:
 Commit or Branch. There are two.
 _Avoid_: command, action, mode
