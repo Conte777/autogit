@@ -31,6 +31,11 @@ changelog:
     exclude: ["^docs:", "^test:", "^chore:"]
 
 release:
+  # A re-run of a failed release otherwise dies on its own archives with
+  # 422 already_exists, before it ever reaches the cask; and keeps whatever
+  # notes the first run wrote, however the changelog has changed since.
+  replace_existing_artifacts: true
+  mode: replace
   extra_files:
     - glob: schema/config.schema.json
 
