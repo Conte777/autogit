@@ -89,12 +89,9 @@ func (p *PresetOverride) UnmarshalJSON(b []byte) error {
 }
 
 type presetLayer struct {
-	dir string
-	// root confines the prompt paths of an untrusted layer. Empty means the
-	// layer is the user's own file and may name anything on the disk; a
-	// repository layer sets it to the worktree it arrived with.
-	root string
-	defs map[string]PresetOverride
+	dir        string
+	confinedTo string
+	defs       map[string]PresetOverride
 }
 
 // Duration is a time.Duration written as a Go duration string.
@@ -169,11 +166,12 @@ func (c *Config) ResolvePreset() (preset.Preset, error) {
 		if !ok || len(override.raw) == 0 {
 			continue
 		}
-		inherited := p
+		commit, branch := p.Commit.Prompt, p.Branch.Prompt
+		p.Commit.Prompt, p.Branch.Prompt = "", ""
 		if err := decodeStrict(override.raw, &p); err != nil {
 			return preset.Preset{}, &Error{fmt.Errorf("presets.%s: %w", c.Preset, err)}
 		}
-		if err := resolvePromptPaths(&p, inherited, layer, c.env); err != nil {
+		if err := layer.resolvePrompts(&p, commit, branch, c.env); err != nil {
 			return preset.Preset{}, &Error{fmt.Errorf("presets.%s: %w", c.Preset, err)}
 		}
 	}
@@ -193,37 +191,56 @@ func (c *Config) definedInLayers(name string) bool {
 	return false
 }
 
-func resolvePromptPaths(p *preset.Preset, inherited preset.Preset, layer presetLayer, env func(string) (string, bool)) error {
+func (l presetLayer) resolvePrompts(p *preset.Preset, commit, branch string, env func(string) (string, bool)) error {
 	for _, entry := range []struct {
 		key       string
 		path      *string
 		inherited string
 	}{
-		{"commit.prompt", &p.Commit.Prompt, inherited.Commit.Prompt},
-		{"branch.prompt", &p.Branch.Prompt, inherited.Branch.Prompt},
+		{"commit.prompt", &p.Commit.Prompt, commit},
+		{"branch.prompt", &p.Branch.Prompt, branch},
 	} {
-		if *entry.path == "" || *entry.path == entry.inherited {
+		if *entry.path == "" {
+			*entry.path = entry.inherited
 			continue
 		}
-		if layer.root != "" {
-			if err := confine(*entry.path, layer.root); err != nil {
-				return fmt.Errorf("%s: %w", entry.key, err)
-			}
+		resolved, err := l.promptPath(*entry.path, env)
+		if err != nil {
+			return fmt.Errorf("%s: %w", entry.key, err)
 		}
-		*entry.path = resolvePath(*entry.path, layer.dir, env)
+		*entry.path = resolved
 	}
 	return nil
 }
 
-func confine(path, root string) error {
-	escapes := strings.HasPrefix(path, "~") || filepath.IsAbs(path)
-	if !escapes {
-		rel, err := filepath.Rel(root, filepath.Join(root, path))
-		escapes = err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator))
+func (l presetLayer) promptPath(declared string, env func(string) (string, bool)) (string, error) {
+	if l.confinedTo != "" && !insideDir(declared, l.confinedTo) {
+		return "", fmt.Errorf("%q is outside the repository; "+
+			"a repository config may only name a prompt file inside the repository itself", declared)
 	}
-	if escapes {
-		return fmt.Errorf("%q is outside the repository; "+
-			"a repository config may only name a prompt file inside the repository itself", path)
+	return resolvePath(declared, l.dir, env), nil
+}
+
+func insideDir(path, dir string) bool {
+	if path == "~" || strings.HasPrefix(path, "~/") || filepath.IsAbs(path) {
+		return false
 	}
-	return nil
+	full := filepath.Join(dir, path)
+	if !under(dir, full) {
+		return false
+	}
+	target, err := filepath.EvalSymlinks(full)
+	if err != nil {
+		return true
+	}
+	realDir, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return false
+	}
+	return under(realDir, target)
+}
+
+func under(dir, path string) bool {
+	rel, err := filepath.Rel(dir, path)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }

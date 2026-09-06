@@ -12,7 +12,8 @@ merely ignored switches branch protection off in silence.
 The same reading applies to the values of the keys it may set, not only to the
 keys themselves: a prompt path inside `presets.*` names a file autogit reads and
 sends to the model, so a repository layer resolves it inside the worktree and
-rejects an absolute path, a `~` and an escape through `..` at resolution time.
+rejects an absolute path, a `~`, an escape through `..` and a symlink leaving
+the worktree, at resolution time.
 The global config is the user's own file and keeps the run of the disk.
 
 ## Consequences

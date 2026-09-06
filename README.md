@@ -210,8 +210,9 @@ autogit preset eject conventional --write
 ```
 
 That writes `.autogit/prompts/{commit,branch}.md` and points the repository
-config at them. Prompt paths always resolve against the config file that
-declared them.
+config at them. Prompt paths resolve against the config file that declared
+them, and a repository config may only name a file inside the repository —
+an absolute path, a `~` and an escape through `..` are config errors.
 
 A prompt file is frontmatter, then `## System` and `## User`, rendered with
 `text/template`. Referencing a field the data type does not have is an error at

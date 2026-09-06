@@ -627,8 +627,6 @@ func TestParseStageMode(t *testing.T) {
 	}
 }
 
-// A cloned repository pointing its commit prompt at a file of the user's own
-// must not get that file read, let alone sent to the model.
 func TestRepoConfigCannotSendAPromptFromOutsideTheRepo(t *testing.T) {
 	e := newEnv(t, "feat: add the greeting file")
 	e.commitFile("a.txt", "one\n", "init")
@@ -641,8 +639,12 @@ func TestRepoConfigCannotSendAPromptFromOutsideTheRepo(t *testing.T) {
 	}
 	e.repoConfig(`{"presets":{"conventional":{"commit":{"prompt":"` + outside + `"}}}}`)
 
-	if _, err := app.New(e.repo, e.cfg, e.prov, ui.Noop{}); err == nil {
+	_, err := app.New(e.repo, e.cfg, e.prov, ui.Noop{})
+	if err == nil {
 		t.Fatal("a repository config pointed the commit prompt outside the repository")
+	}
+	if !strings.Contains(err.Error(), "outside the repository") {
+		t.Errorf("err = %v, want the path rejected rather than the file read", err)
 	}
 	if e.prov.Sessions != 0 {
 		t.Errorf("sessions = %d, want the provider left uncontacted", e.prov.Sessions)

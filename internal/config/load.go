@@ -154,7 +154,7 @@ func applyRepo(cfg *Config, data []byte, path string) error {
 	}
 	if len(repo.Presets) > 0 {
 		dir := filepath.Dir(path)
-		cfg.presetLayers = append(cfg.presetLayers, presetLayer{dir: dir, root: dir, defs: repo.Presets})
+		cfg.presetLayers = append(cfg.presetLayers, presetLayer{dir: dir, confinedTo: dir, defs: repo.Presets})
 	}
 	cfg.sources = append(cfg.sources, path)
 	return nil
