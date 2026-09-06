@@ -16,6 +16,14 @@ rejects an absolute path, a `~`, an escape through `..` and a symlink leaving
 the worktree, at resolution time.
 The global config is the user's own file and keeps the run of the disk.
 
+`diff.excludePathspecs` is global-only for the same reason. It drops the bodies
+of the files it names while the file list stays complete, so a repository
+excluding `*.go` would get a commit message that describes none of the code that
+changed and admits nothing — the message reads as harmless while the code is
+not. The other `diff` keys stay repo-settable because their worst case is a
+shorter diff that says it is short: truncation prints the stat and a note into
+the very text the model reads.
+
 ## Consequences
 
 The repository layer decodes into its own whitelist type, not into `Config`.

@@ -148,8 +148,8 @@ func applyRepo(cfg *Config, data []byte, path string) error {
 		cfg.PreparedMessage = *repo.PreparedMessage
 	}
 	if len(repo.Diff) > 0 {
-		if err := decodeStrict(repo.Diff, &cfg.Diff); err != nil {
-			return configErr("%s: diff: %v", path, err)
+		if err := applyRepoDiff(cfg, repo.Diff, path); err != nil {
+			return err
 		}
 	}
 	if len(repo.Presets) > 0 {
@@ -157,6 +157,37 @@ func applyRepo(cfg *Config, data []byte, path string) error {
 		cfg.presetLayers = append(cfg.presetLayers, presetLayer{dir: dir, confinedTo: dir, defs: repo.Presets})
 	}
 	cfg.sources = append(cfg.sources, path)
+	return nil
+}
+
+// repoDiff is the diff whitelist for a repository file. excludePathspecs is
+// absent on purpose: it drops the bodies of the files it names while the file
+// list stays complete, so a repo excluding every source file would yield a
+// message that describes nothing and says so nowhere. The keys left here can
+// only shorten the diff in ways the diff itself reports.
+type repoDiff struct {
+	MaxBytes         *int  `json:"maxBytes,omitempty"`
+	Context          *int  `json:"context,omitempty"`
+	IgnoreSubmodules *bool `json:"ignoreSubmodules,omitempty"`
+}
+
+func applyRepoDiff(cfg *Config, data []byte, path string) error {
+	var diff repoDiff
+	if err := decodeStrict(data, &diff); err != nil {
+		return configErr("%s: diff: %v\n"+
+			"a repository config may only set diff.maxBytes, diff.context and diff.ignoreSubmodules; "+
+			"diff.excludePathspecs is global-only, because it hides the body of a change "+
+			"from the model without the generated message saying so", path, err)
+	}
+	if diff.MaxBytes != nil {
+		cfg.Diff.MaxBytes = *diff.MaxBytes
+	}
+	if diff.Context != nil {
+		cfg.Diff.Context = *diff.Context
+	}
+	if diff.IgnoreSubmodules != nil {
+		cfg.Diff.IgnoreSubmodules = *diff.IgnoreSubmodules
+	}
 	return nil
 }
 

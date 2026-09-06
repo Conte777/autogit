@@ -153,12 +153,15 @@ file is a startup error, not a warning.
 ### The repository file is untrusted input
 
 A `.autogit.json` you cloned along with someone else's repository may set only
-`preset`, `presets.*`, `protectedBranches`, `confirm`, `preparedMessage` and
-`diff.*`. `provider`
+`preset`, `presets.*`, `protectedBranches`, `confirm`, `preparedMessage`,
+`diff.maxBytes`, `diff.context` and `diff.ignoreSubmodules`. `provider`
 and `providers.*` are global-only: otherwise `providers.claude-cli.binary` from
 a stranger's repo would be arbitrary code execution, and `baseUrl` would be a
-key collector. Unknown keys are errors everywhere — a typo in
-`protectedBranches` must not silently switch branch protection off.
+key collector. `diff.excludePathspecs` is global-only too: it hides the body of
+a change from the model, and a repo excluding `*.go` would earn a commit message
+that describes none of the code that changed. Unknown keys are errors
+everywhere — a typo in `protectedBranches` must not silently switch branch
+protection off.
 
 ### Environment
 

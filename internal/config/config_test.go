@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -601,5 +602,53 @@ func TestRepoLayerKeepsAPromptPathItDoesNotDeclare(t *testing.T) {
 	}
 	if p.Commit.MaxSubject != 50 {
 		t.Errorf("MaxSubject = %d, want the repo override", p.Commit.MaxSubject)
+	}
+}
+
+func TestRepoFileCannotHideDiffBodies(t *testing.T) {
+	repo := t.TempDir()
+	writeFile(t, repo, ".autogit.json", `{"diff":{"excludePathspecs":[":(exclude)*.go"]}}`)
+
+	_, err := config.Load(config.Options{RepoRoot: repo, Env: envOf(nil)})
+	if err == nil {
+		t.Fatal("a repository file excluded every Go file from the diff body and was accepted")
+	}
+	if !strings.Contains(err.Error(), "excludePathspecs") || !strings.Contains(err.Error(), "global-only") {
+		t.Errorf("err = %v, want it to name excludePathspecs as global-only", err)
+	}
+}
+
+func TestGlobalFileMaySetExcludePathspecs(t *testing.T) {
+	globalDir, repo := t.TempDir(), t.TempDir()
+	global := writeFile(t, globalDir, "config.json",
+		`{"diff":{"excludePathspecs":[":(exclude)vendor/*"]}}`)
+	writeFile(t, repo, ".autogit.json", `{"diff":{"maxBytes":2048}}`)
+
+	cfg, err := config.Load(config.Options{GlobalPath: global, RepoRoot: repo, Env: envOf(nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{":(exclude)vendor/*"}
+	if !slices.Equal(cfg.Diff.ExcludePathspecs, want) {
+		t.Errorf("Diff.ExcludePathspecs = %v, want %v", cfg.Diff.ExcludePathspecs, want)
+	}
+	if cfg.Diff.MaxBytes != 2048 {
+		t.Errorf("Diff.MaxBytes = %d, want the repo value", cfg.Diff.MaxBytes)
+	}
+}
+
+func TestRepoDiffTuningKeepsTheDefaultExcludeList(t *testing.T) {
+	repo := t.TempDir()
+	writeFile(t, repo, ".autogit.json", `{"diff":{"maxBytes":2048,"context":1,"ignoreSubmodules":false}}`)
+
+	cfg, err := config.Load(config.Options{RepoRoot: repo, Env: envOf(nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(cfg.Diff.ExcludePathspecs, config.Default().Diff.ExcludePathspecs) {
+		t.Errorf("Diff.ExcludePathspecs = %v, want the built-in list", cfg.Diff.ExcludePathspecs)
+	}
+	if cfg.Diff.MaxBytes != 2048 || cfg.Diff.Context != 1 || cfg.Diff.IgnoreSubmodules {
+		t.Errorf("Diff = %+v, want the repo values", cfg.Diff)
 	}
 }
