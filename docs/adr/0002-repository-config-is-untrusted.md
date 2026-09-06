@@ -1,8 +1,9 @@
 # A repository config file is untrusted input
 
 `.autogit.json` arrives with a clone, so autogit treats it as input from a
-stranger: it may set only `preset`, `presets.*`, `protectedBranches`, `confirm`
-and `diff.*`. `provider` and `providers.*` stay global-only because
+stranger: it may set only `preset`, `presets.*`, `protectedBranches`, `confirm`,
+`preparedMessage`, `diff.maxBytes` and `diff.context`. `provider` and
+`providers.*` stay global-only because
 `providers.claude-cli.binary` from someone else's repository would be arbitrary
 code execution on the first commit, and `baseUrl` would quietly redirect the
 prompt — and the API key — to a collector. Unknown keys are a startup error at
@@ -16,13 +17,17 @@ rejects an absolute path, a `~`, an escape through `..` and a symlink leaving
 the worktree, at resolution time.
 The global config is the user's own file and keeps the run of the disk.
 
-`diff.excludePathspecs` is global-only for the same reason. It drops the bodies
-of the files it names while the file list stays complete, so a repository
-excluding `*.go` would get a commit message that describes none of the code that
-changed and admits nothing — the message reads as harmless while the code is
-not. The other `diff` keys stay repo-settable because their worst case is a
-shorter diff that says it is short: truncation prints the stat and a note into
-the very text the model reads.
+`diff.excludePathspecs` and `diff.ignoreSubmodules` are global-only for the same
+reason. Each drops the body of a change while the file list stays complete: a
+repository excluding `*.go`, or hiding a submodule it has bumped to a commit of
+its own choosing, would get a message that describes none of it and admits
+nothing — the message reads as harmless while the code is not.
+
+`maxBytes` and `context` stay repo-settable because their worst case is a shorter
+diff that says it is short: truncation prints the stat and a note into the very
+text the model reads. `maxBytes` is accepted only downwards, within the budget
+already in effect, because raising it is not a smaller diff but a read large
+enough to exhaust memory before anything is generated.
 
 ## Consequences
 
