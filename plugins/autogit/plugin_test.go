@@ -2,10 +2,13 @@ package autogit_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"maps"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -100,6 +103,61 @@ func TestPluginManifest(t *testing.T) {
 	if p.Version == "" {
 		t.Error("plugin version is empty")
 	}
+}
+
+// The release workflow refuses a tag the manifest disagrees with, but by then
+// the tag is public and the only way out is moving it. A forgotten bump is
+// caught here instead, on the pull request that forgot it.
+func TestPluginVersionIsNotBehindTheNewestTag(t *testing.T) {
+	newest := newestTag(t)
+	if newest == "" {
+		t.Skip("no tags reachable; a shallow clone cannot know what shipped")
+	}
+	p := readJSON[manifest](t, filepath.Join(".claude-plugin", "plugin.json"))
+
+	got, err := semver(p.Version)
+	if err != nil {
+		t.Fatalf("plugin version %q: %v", p.Version, err)
+	}
+	want, err := semver(strings.TrimPrefix(newest, "v"))
+	if err != nil {
+		t.Skipf("newest tag %q is not a plain version", newest)
+	}
+	if slices.Compare(got, want) < 0 {
+		t.Errorf("plugin version %s is behind tag %s: bump "+
+			"plugins/autogit/.claude-plugin/plugin.json in the commit that ships under the next tag",
+			p.Version, newest)
+	}
+}
+
+func newestTag(t *testing.T) string {
+	t.Helper()
+	cmd := exec.Command("git", "describe", "--tags", "--abbrev=0")
+	cmd.Dir = repoRoot
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// semver splits a plain major.minor.patch. A prerelease or build suffix has no
+// obvious answer here — the marketplace would serve it to everyone — so it is
+// rejected rather than guessed at.
+func semver(s string) ([]int, error) {
+	parts := strings.Split(s, ".")
+	if len(parts) != 3 {
+		return nil, fmt.Errorf("want major.minor.patch, got %d parts", len(parts))
+	}
+	out := make([]int, 3)
+	for i, part := range parts {
+		n, err := strconv.Atoi(part)
+		if err != nil || n < 0 {
+			return nil, fmt.Errorf("%q is not a version number", part)
+		}
+		out[i] = n
+	}
+	return out, nil
 }
 
 func TestCommandSetMatchesTheHook(t *testing.T) {

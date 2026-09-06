@@ -288,12 +288,11 @@ Permissions are not part of the plugin: a plugin cannot grant them, and the
 first approval of a tool is yours to give.
 
 The version in `plugins/autogit/.claude-plugin/plugin.json` is the release's: it
-always equals the tag, whether or not a command, a hook or the MCP wiring moved.
-Bump it in the same commit that goes out under the tag — the release workflow
-checks the two agree and refuses to publish otherwise. Marketplace and binary are
-still installed and updated separately — `/plugin` and `brew upgrade` — so the
-shared number tells you which release a plugin was cut from, not that the two are
-in step on your machine.
+always equals the tag, whether or not a command, a hook or the MCP wiring moved,
+and both CI and the release workflow refuse a mismatch. Marketplace and binary
+are still installed and updated separately — `/plugin` and `brew upgrade` — so
+the shared number tells you which release a plugin was cut from, not that the
+two are in step on your machine.
 
 #### Migrating from `autogit install claude-code`
 

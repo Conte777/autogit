@@ -14,9 +14,12 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      # The marketplace serves plugins/autogit straight out of this repo, so a
-      # manifest that disagrees with the tag hands every `/plugin` user a version
-      # number no release ever had. Refuse here, before the cask has moved.
+      # The marketplace installs plugins/autogit from the default branch, so the
+      # number in the manifest is what every `/plugin` user reads. This is the
+      # last moment it can still be compared against a tag: refuse here, before
+      # any artifact is uploaded and before the cask moves. Keeping the default
+      # branch honest in between is the ordering rule in docs/agents/release.md,
+      # which TestPluginVersionIsNotBehindTheNewestTag holds up on every PR.
       - name: Plugin version matches the tag
         run: |
           want="${GITHUB_REF_NAME#v}"
