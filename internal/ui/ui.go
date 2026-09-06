@@ -37,17 +37,29 @@ type UI struct {
 	err         io.Writer
 	in          *bufio.Reader
 	interactive bool
+	// errTTY is asked separately because interactive says nothing about
+	// stderr: `autogit commit 2>run.log` on a live terminal would otherwise
+	// write escape sequences into the log file.
+	errTTY bool
 }
 
 // New builds a UI over the process streams. interactive is forced off when
 // either side of the conversation is not a terminal.
 func New(out, errw io.Writer, in io.Reader, interactive bool) *UI {
-	return &UI{out: out, err: errw, in: bufio.NewReader(in), interactive: interactive}
+	return &UI{
+		out:         out,
+		err:         errw,
+		in:          bufio.NewReader(in),
+		interactive: interactive,
+		errTTY:      interactive,
+	}
 }
 
 // Std builds the UI for a CLI run.
 func Std() *UI {
-	return New(os.Stdout, os.Stderr, os.Stdin, IsTerminal(os.Stdout) && IsTerminal(os.Stdin))
+	u := New(os.Stdout, os.Stderr, os.Stdin, IsTerminal(os.Stdout) && IsTerminal(os.Stdin))
+	u.errTTY = IsTerminal(os.Stderr)
+	return u
 }
 
 // IsTerminal reports whether f is a character device.
@@ -137,3 +149,4 @@ type Noop struct{}
 func (Noop) Confirm(string, bool) (bool, error)      { return false, ErrNoInput }
 func (Noop) Choose(string, []Option) (string, error) { return "", ErrNoInput }
 func (Noop) Interactive() bool                       { return false }
+func (Noop) Start(string) func()                     { return func() {} }

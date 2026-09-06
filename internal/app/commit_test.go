@@ -774,7 +774,7 @@ func TestRepoConfigCannotSendAPromptFromOutsideTheRepo(t *testing.T) {
 	}
 	e.repoConfig(`{"presets":{"conventional":{"commit":{"prompt":"` + outside + `"}}}}`)
 
-	_, err := app.New(e.repo, e.cfg, e.prov, ui.Noop{})
+	_, err := app.New(e.repo, e.cfg, e.prov, ui.Noop{}, ui.Noop{})
 	if err == nil {
 		t.Fatal("a repository config pointed the commit prompt outside the repository")
 	}

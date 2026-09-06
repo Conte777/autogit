@@ -159,6 +159,9 @@ func (a *App) askBranch(ctx context.Context, data prompt.BranchData) (branchAnsw
 		types:    data.Types,
 		slug:     validate.SlugRules{MaxLen: a.preset.Branch.MaxSlugLen},
 	}
+	stop := a.progress.Start(branchProgressLabel)
+	defer stop()
+
 	result, err := a.generate(ctx, gen.Request{System: system, Prompt: user, Validator: v})
 	if err != nil {
 		return branchAnswer{}, err

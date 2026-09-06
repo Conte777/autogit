@@ -59,7 +59,7 @@ func TestBuildTakesThePresetFromTheGlobalConfig(t *testing.T) {
 	global := writeFile(t, dir, "global.json", `{"preset":"ticket"}`)
 
 	a, err := build(context.Background(),
-		&globals{repo: dir, confPath: global, env: envOf(nil)}, ui.Noop{})
+		&globals{repo: dir, confPath: global, env: envOf(nil)}, ui.Noop{}, ui.Noop{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func TestBuildPresetFlagBeatsTheConfigFile(t *testing.T) {
 	global := writeFile(t, dir, "global.json", `{"preset":"ticket"}`)
 
 	a, err := build(context.Background(),
-		&globals{repo: dir, confPath: global, preset: "conventional", env: envOf(nil)}, ui.Noop{})
+		&globals{repo: dir, confPath: global, preset: "conventional", env: envOf(nil)}, ui.Noop{}, ui.Noop{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestBuildProviderFlagBeatsTheConfigFile(t *testing.T) {
 		confPath: global,
 		provider: "anthropic",
 		env:      envOf(map[string]string{"OPENAI_API_KEY": "sk-openai"}),
-	}, ui.Noop{})
+	}, ui.Noop{}, ui.Noop{})
 	if err == nil {
 		t.Fatal("build used the OpenAI key for --provider anthropic")
 	}
@@ -105,7 +105,7 @@ func TestBuildMissingAPIKeyNamesTheVariable(t *testing.T) {
 	global := writeFile(t, dir, "global.json", `{"provider":"openai"}`)
 
 	_, err := build(context.Background(),
-		&globals{repo: dir, confPath: global, env: envOf(nil)}, ui.Noop{})
+		&globals{repo: dir, confPath: global, env: envOf(nil)}, ui.Noop{}, ui.Noop{})
 	if err == nil {
 		t.Fatal("build accepted a key-less provider")
 	}
@@ -127,7 +127,7 @@ func TestBuildIgnoresTheProcessEnvironment(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "sk-from-the-process")
 
 	if _, err := build(context.Background(),
-		&globals{repo: dir, confPath: global, env: envOf(nil)}, ui.Noop{}); err == nil {
+		&globals{repo: dir, confPath: global, env: envOf(nil)}, ui.Noop{}, ui.Noop{}); err == nil {
 		t.Fatal("build read the process environment instead of the one it was given")
 	}
 
@@ -135,7 +135,7 @@ func TestBuildIgnoresTheProcessEnvironment(t *testing.T) {
 		repo:     dir,
 		confPath: global,
 		env:      envOf(map[string]string{"OPENAI_API_KEY": "sk-synthetic"}),
-	}, ui.Noop{})
+	}, ui.Noop{}, ui.Noop{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +150,7 @@ func TestBuildRejectsABrokenPreset(t *testing.T) {
 		`{"presets":{"conventional":{"commit":{"body":{"mode":"sometimes"}}}}}`)
 
 	_, err := build(context.Background(),
-		&globals{repo: dir, confPath: filepath.Join(dir, "absent.json"), env: envOf(nil)}, ui.Noop{})
+		&globals{repo: dir, confPath: filepath.Join(dir, "absent.json"), env: envOf(nil)}, ui.Noop{}, ui.Noop{})
 	if err == nil {
 		t.Fatal("build accepted a preset that cannot run")
 	}
@@ -167,7 +167,7 @@ func TestBuildRejectsAnUnknownPresetName(t *testing.T) {
 		confPath: filepath.Join(dir, "absent.json"),
 		preset:   "nope",
 		env:      envOf(nil),
-	}, ui.Noop{})
+	}, ui.Noop{}, ui.Noop{})
 	if err == nil {
 		t.Fatal("build accepted an unknown preset")
 	}
@@ -187,7 +187,7 @@ func TestBuildFindsTheRepositoryConfigFromASubdirectory(t *testing.T) {
 	}
 
 	a, err := build(context.Background(),
-		&globals{repo: sub, confPath: filepath.Join(dir, "absent.json"), env: envOf(nil)}, ui.Noop{})
+		&globals{repo: sub, confPath: filepath.Join(dir, "absent.json"), env: envOf(nil)}, ui.Noop{}, ui.Noop{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +200,7 @@ func TestBuildOutsideARepository(t *testing.T) {
 	dir := t.TempDir()
 
 	_, err := build(context.Background(),
-		&globals{repo: dir, confPath: filepath.Join(dir, "absent.json"), env: envOf(nil)}, ui.Noop{})
+		&globals{repo: dir, confPath: filepath.Join(dir, "absent.json"), env: envOf(nil)}, ui.Noop{}, ui.Noop{})
 	if err == nil {
 		t.Fatal("build worked outside a repository")
 	}

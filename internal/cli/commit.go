@@ -68,7 +68,7 @@ func commitMsgCmd(g *globals, out *ui.UI) *cobra.Command {
 }
 
 func runCommit(ctx context.Context, g *globals, out *ui.UI, req app.CommitRequest) error {
-	a, err := build(ctx, g, prompterFor(g, out))
+	a, err := build(ctx, g, prompterFor(g, out), progressFor(g, out))
 	if err != nil {
 		return err
 	}

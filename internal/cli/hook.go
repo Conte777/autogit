@@ -32,7 +32,7 @@ func hookCmd(g *globals) *cobra.Command {
 func runHookCommand(ctx context.Context, g *globals, c hook.Command) (string, error) {
 	// No terminal on this surface: questions become errors carrying the exact
 	// command to retype.
-	a, err := build(ctx, g, ui.Noop{})
+	a, err := build(ctx, g, ui.Noop{}, ui.Noop{})
 	if err != nil {
 		return "", err
 	}

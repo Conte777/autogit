@@ -117,3 +117,31 @@ func TestPrintGoesToStdout(t *testing.T) {
 		t.Errorf("stderr = %q", errw.String())
 	}
 }
+
+func TestStaticProgressGoesToStderrNotStdout(t *testing.T) {
+	u, out, errw := newUI("")
+	u.StaticProgress().Start("Generating branch name…")()
+
+	if out.String() != "" {
+		t.Errorf("stdout got %q; a report there corrupts `autogit commit-msg > file`", out.String())
+	}
+	if !strings.Contains(errw.String(), "Generating branch name…") {
+		t.Errorf("stderr never saw the report:\n%q", errw.String())
+	}
+}
+
+func TestNonInteractiveProgressPrintsOneStaticLine(t *testing.T) {
+	var out, errw strings.Builder
+	u := ui.New(&out, &errw, strings.NewReader(""), false)
+	u.Start("Generating commit message…")()
+
+	got := errw.String()
+	if got != "Generating commit message…\n" {
+		t.Errorf("stderr = %q, want the one static line", got)
+	}
+}
+
+func TestNoopShowsNothing(t *testing.T) {
+	var p ui.Progress = ui.Noop{}
+	p.Start("Generating commit message…")()
+}
