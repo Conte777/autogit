@@ -45,6 +45,10 @@ The worktree, the gates, the PR, the two reviews, the merge. See `docs/agents/co
 
 The five canonical triage roles, each label string equal to its name. See `docs/agents/triage-labels.md`.
 
+### Releases
+
+The tag, the plugin version that has to match it, the order. See `docs/agents/release.md`.
+
 ### Domain docs
 
 Single-context: `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
