@@ -56,7 +56,7 @@ type CommitRequest struct {
 	Force bool
 	// Consent asks the user to permit a protected branch over a channel the
 	// model never sees. Nil on a surface that has no such channel.
-	Consent func(ctx context.Context, branch string) (bool, error)
+	Consent ConsentFunc
 	// Preview generates the message and stops — this is `commit-msg`, which is
 	// the same code path so that the preview cannot differ from the commit.
 	Preview bool

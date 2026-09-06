@@ -98,7 +98,7 @@ Set `"preparedMessage": false` to generate a message in these states instead.
 | 2 | usage error |
 | 3 | not a git repository, a state that blocks committing, unresolved conflicts, or a git command that failed or timed out |
 | 4 | nothing to commit |
-| 5 | protected branch, without `--force` and without the user's consent |
+| 5 | protected branch without `--force` |
 | 6 | provider failure (missing binary, 401, timeout, network) |
 | 7 | validation failed after every attempt |
 | 8 | configuration error |

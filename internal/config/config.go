@@ -135,7 +135,6 @@ func Default() Config {
 		Attempts:          3,
 		Timeout:           Duration(90 * time.Second),
 		ProtectedBranches: []string{"main", "master", "develop", "stage", "staging", "release/*"},
-		MCP:               MCP{AllowProtectedBranch: false},
 		Diff: Diff{
 			MaxBytes:         40000,
 			Context:          3,

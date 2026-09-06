@@ -46,8 +46,14 @@ write to `main` at all.
 repository `.autogit.json` cannot see the key, for the reason in ADR
 _A repository config file is untrusted input_: a cloned repository able to set
 it would be granting an agent the right to commit to the very branches the same
-file declares protected. With the key off the server passes no consent channel
-and the behaviour is what it always was.
+file declares protected. With the key off nothing is ever asked and the branch
+is refused exactly as before; only the wording differs, because a model reading
+"re-run with `--force`" holds no such flag and would go looking for one.
+
+The key is read in `app`, not in `mcpsrv`, so the server always offers the
+channel and the policy decides whether to use it. Policy over a protected branch
+belongs with the rest of the commit policy; the surface's job is to be a way of
+reaching the user, not to know when reaching them is allowed.
 
 **Consent lasts until the work leaves the branch.** It is held per repository in
 the running server, keyed by the branch it was given for, and a commit landing
@@ -56,6 +62,12 @@ teaches the user to click yes without reading; remembering the answer for the
 whole session turns "the user allowed this commit" into "the user once allowed a
 mode". Expiring on a branch change keeps it to a single episode of work.
 
+The expiry only sees branches autogit itself committed in. Leaving `main`,
+committing from a shell and coming back finds the consent still standing,
+because nothing told the server the work had moved. Accepted: the alternative is
+reading HEAD on every call to catch a case the user can always answer again by
+restarting the session.
+
 A refusal is never remembered. The two are not symmetric: a stuck yes quietly
 lets commits into `main`, a stuck no only inconveniences.
 
@@ -63,9 +75,11 @@ lets commits into `main`, a stuck no only inconveniences.
 
 The call no longer waits for the user, so nothing is held while the question is
 open: the per-repository lock is taken, released with the first result, and
-taken again by the retry. Between the two, another call could commit — but
-consent names the branch it was granted for and the retry re-reads the current
-branch, so a consent cannot be spent on a branch it was not given for.
+taken again by the retry. Between the two, another call could move HEAD. The
+question therefore carries the branch in its own request id, and the retry looks
+the answer up under the branch it has just re-read: a yes given about `main`
+simply is not found when the retry lands on `release/1.2`, and that branch is
+asked about separately.
 
 The `commit` handler is now re-entrant by design. Its first pass must reach the
 protected-branch check without side effects, which the existing order already

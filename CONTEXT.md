@@ -154,8 +154,10 @@ _Avoid_: project config, local config
 
 **Surface**:
 The way a request reaches generation — the CLI, the MCP server, or the Claude
-Code hook. It picks the **prompter**, and nothing else about it is carried into
-`app`. `doctor` is a command, not a surface.
+Code hook. What it carries into `app` is the two ways of reaching the user: the
+**prompter**, and, where it has one, a channel for **Consent**. Nothing else
+about it crosses. Whether a channel may be used is `app`'s to decide, not the
+surface's. `doctor` is a command, not a surface.
 _Avoid_: entry point, frontend, interface
 
 **Prompter**:

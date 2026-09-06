@@ -100,15 +100,25 @@ func (s *Server) commit(ctx context.Context, req *mcp.CallToolRequest, in Commit
 			return "", err
 		}
 		if !result.Preview {
-			s.observeBranch(a.Root(), result.Branch)
+			s.dropConsentUnlessOn(a.Root(), result.Branch)
 		}
 		return result.Summary(app.SummaryAgent), nil
 	})
 }
 
 // consentRequestID names the question in the InputRequests map, and the answer
-// in the InputResponses map of the call that follows it.
-const consentRequestID = "protected-branch"
+// in the InputResponses map of the call that follows it. The branch is part of
+// the name so that an answer given about one branch cannot be spent on another
+// when HEAD moves between the question and the retry.
+func consentRequestID(branch string) string { return "protected-branch:" + branch }
+
+// consentSchema is the empty form behind an accept/decline dialog. The field is
+// required of form elicitation by the published schema, and a client validating
+// its params strictly rejects the request without it.
+var consentSchema = map[string]any{
+	"type":       "object",
+	"properties": map[string]any{},
+}
 
 // needsConsent unwinds Commit so the call can return the question, not an error.
 type needsConsent struct {
@@ -122,19 +132,20 @@ func (e *needsConsent) Error() string {
 func (e *needsConsent) result() *mcp.CallToolResult {
 	return &mcp.CallToolResult{
 		InputRequests: mcp.InputRequestMap{
-			consentRequestID: &mcp.ElicitParams{
-				Message: fmt.Sprintf("Branch %q is protected. Commit anyway?", e.branch),
+			consentRequestID(e.branch): &mcp.ElicitParams{
+				Message:         fmt.Sprintf("Branch %q is protected. Commit anyway?", e.branch),
+				RequestedSchema: consentSchema,
 			},
 		},
 	}
 }
 
-func (s *Server) consentFor(req *mcp.CallToolRequest, root string) func(context.Context, string) (bool, error) {
+func (s *Server) consentFor(req *mcp.CallToolRequest, root string) app.ConsentFunc {
 	return func(_ context.Context, branch string) (bool, error) {
 		if granted, ok := s.consented(root); ok && granted == branch {
 			return true, nil
 		}
-		if answer, ok := req.Params.InputResponses[consentRequestID]; ok {
+		if answer, ok := req.Params.InputResponses[consentRequestID(branch)]; ok {
 			elicited, ok := answer.(*mcp.ElicitResult)
 			if !ok || elicited.Action != "accept" {
 				return false, nil
@@ -143,9 +154,11 @@ func (s *Server) consentFor(req *mcp.CallToolRequest, root string) func(context.
 			return true, nil
 		}
 		if !acceptsFormElicitation(req.ClientCapabilities()) {
-			return false, fmt.Errorf("branch %q is protected and this MCP client cannot ask "+
-				"the user for permission: the user has to run `/autogit:commit force` in Claude "+
-				"Code, or `autogit commit --force` in a terminal", branch)
+			return false, &app.ProtectedBranchError{
+				Branch: branch,
+				Hint: "this MCP client cannot ask the user for permission; the user has to run " +
+					"`/autogit:commit force` in Claude Code, or `autogit commit --force` in a terminal",
+			}
 		}
 		return false, &needsConsent{branch: branch}
 	}
@@ -155,7 +168,8 @@ func acceptsFormElicitation(caps *mcp.ClientCapabilities) bool {
 	if caps == nil || caps.Elicitation == nil {
 		return false
 	}
-	return caps.Elicitation.Form != nil || caps.Elicitation.URL == nil
+	declaresNeither := caps.Elicitation.Form == nil && caps.Elicitation.URL == nil
+	return caps.Elicitation.Form != nil || declaresNeither
 }
 
 func (s *Server) consented(root string) (string, bool) {
@@ -171,7 +185,7 @@ func (s *Server) grantConsent(root, branch string) {
 	s.consentedBranch[root] = branch
 }
 
-func (s *Server) observeBranch(root, branch string) {
+func (s *Server) dropConsentUnlessOn(root, branch string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.consentedBranch[root] != branch {

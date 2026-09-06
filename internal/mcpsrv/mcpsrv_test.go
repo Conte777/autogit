@@ -128,6 +128,56 @@ func TestCommitToolRefusalCommitsNothing(t *testing.T) {
 	}
 }
 
+func TestCommitToolDismissalCommitsNothing(t *testing.T) {
+	prov := &mock.Provider{Replies: []string{"feat: add the greeting file"}}
+	dir, build := protectedMain(t, prov)
+	s := connectWith(t, build, (&asks{action: "cancel"}).options())
+
+	result := call(t, s, "commit", map[string]any{"repoPath": dir})
+	if !result.IsError {
+		t.Fatal("a dismissed question still committed")
+	}
+	if !strings.Contains(text(t, result), "did not consent") {
+		t.Errorf("result = %q", text(t, result))
+	}
+}
+
+// TestConsentAnsweredAboutAnotherBranchIsNotSpent moves HEAD to a second
+// protected branch while the question about the first is open. The lock is not
+// held across the wait, so this is reachable, and the answer must not carry.
+func TestConsentAnsweredAboutAnotherBranchIsNotSpent(t *testing.T) {
+	dir := repo(t)
+	run(t, dir, "branch", "-m", "main")
+	prov := &mock.Provider{Replies: []string{"feat: add the greeting file"}}
+	build := builder(t, prov, func(c *config.Config) {
+		c.ProtectedBranches = []string{"main", "release/*"}
+		c.MCP.AllowProtectedBranch = true
+	})
+
+	var asked []string
+	s := connectWith(t, build, &mcp.ClientOptions{
+		ElicitationHandler: func(_ context.Context, req *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+			asked = append(asked, req.Params.Message)
+			if len(asked) == 1 {
+				run(t, dir, "switch", "-c", "release/1.2")
+			}
+			return &mcp.ElicitResult{Action: "accept"}, nil
+		},
+	})
+
+	result := call(t, s, "commit", map[string]any{"repoPath": dir})
+	if result.IsError {
+		t.Fatalf("commit failed: %s", text(t, result))
+	}
+	if len(asked) != 2 {
+		t.Fatalf("the user was asked %d times, want 2: an answer about main cannot pay for release/1.2\n%v",
+			len(asked), asked)
+	}
+	if !strings.Contains(asked[0], "main") || !strings.Contains(asked[1], "release/1.2") {
+		t.Errorf("questions = %v, want one per branch", asked)
+	}
+}
+
 func TestConsentIsNotAskedTwiceOnTheSameBranch(t *testing.T) {
 	prov := &mock.Provider{Replies: []string{"feat: add the first file", "feat: add the second file"}}
 	dir, build := protectedMain(t, prov)
