@@ -89,19 +89,21 @@ func TestBadInvocationIsAUsageError(t *testing.T) {
 		})
 	}
 
-	for _, args := range [][]string{{"help"}, {"help", "preset"}, {"help", "preset", "eject"}} {
-		t.Run("a help topic still prints: "+strings.Join(args, " "), func(t *testing.T) {
-			if err := runRoot(t, args...); err != nil {
-				t.Errorf("autogit %s failed: %v", strings.Join(args, " "), err)
-			}
-		})
-	}
-
 	// RunE only exists so that cobra reaches Args at all: it stops at the first
-	// command that is not runnable. Take it away and these two are the only
-	// things that notice.
-	for _, args := range [][]string{{}, {"preset"}} {
-		t.Run("a parent command still helps: "+strings.Join(args, " "), func(t *testing.T) {
+	// command that is not runnable. Take it away and the first two are the only
+	// things that notice. The rest are the topics `help` still has to print,
+	// arguments of the topic included.
+	for _, args := range [][]string{
+		{},
+		{"preset"},
+		{"help"},
+		{"help", "preset"},
+		{"help", "preset", "eject"},
+		{"help", "preset", "eject", "NAME"},
+		{"help", "branch"},
+		{"help", "branch", "main"},
+	} {
+		t.Run("still helps: "+strings.Join(args, " "), func(t *testing.T) {
 			if err := runRoot(t, args...); err != nil {
 				t.Errorf("autogit %s failed: %v", strings.Join(args, " "), err)
 			}
