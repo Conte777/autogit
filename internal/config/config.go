@@ -6,6 +6,8 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/Conte777/autogit/internal/preset"
@@ -87,7 +89,11 @@ func (p *PresetOverride) UnmarshalJSON(b []byte) error {
 }
 
 type presetLayer struct {
-	dir  string
+	dir string
+	// root confines the prompt paths of an untrusted layer. Empty means the
+	// layer is the user's own file and may name anything on the disk; a
+	// repository layer sets it to the worktree it arrived with.
+	root string
 	defs map[string]PresetOverride
 }
 
@@ -163,10 +169,13 @@ func (c *Config) ResolvePreset() (preset.Preset, error) {
 		if !ok || len(override.raw) == 0 {
 			continue
 		}
+		inherited := p
 		if err := decodeStrict(override.raw, &p); err != nil {
 			return preset.Preset{}, &Error{fmt.Errorf("presets.%s: %w", c.Preset, err)}
 		}
-		resolvePromptPaths(&p, layer.dir, c.env)
+		if err := resolvePromptPaths(&p, inherited, layer, c.env); err != nil {
+			return preset.Preset{}, &Error{fmt.Errorf("presets.%s: %w", c.Preset, err)}
+		}
 	}
 
 	if err := p.Validate(); err != nil {
@@ -184,7 +193,37 @@ func (c *Config) definedInLayers(name string) bool {
 	return false
 }
 
-func resolvePromptPaths(p *preset.Preset, dir string, env func(string) (string, bool)) {
-	p.Commit.Prompt = resolvePath(p.Commit.Prompt, dir, env)
-	p.Branch.Prompt = resolvePath(p.Branch.Prompt, dir, env)
+func resolvePromptPaths(p *preset.Preset, inherited preset.Preset, layer presetLayer, env func(string) (string, bool)) error {
+	for _, entry := range []struct {
+		key       string
+		path      *string
+		inherited string
+	}{
+		{"commit.prompt", &p.Commit.Prompt, inherited.Commit.Prompt},
+		{"branch.prompt", &p.Branch.Prompt, inherited.Branch.Prompt},
+	} {
+		if *entry.path == "" || *entry.path == entry.inherited {
+			continue
+		}
+		if layer.root != "" {
+			if err := confine(*entry.path, layer.root); err != nil {
+				return fmt.Errorf("%s: %w", entry.key, err)
+			}
+		}
+		*entry.path = resolvePath(*entry.path, layer.dir, env)
+	}
+	return nil
+}
+
+func confine(path, root string) error {
+	escapes := strings.HasPrefix(path, "~") || filepath.IsAbs(path)
+	if !escapes {
+		rel, err := filepath.Rel(root, filepath.Join(root, path))
+		escapes = err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator))
+	}
+	if escapes {
+		return fmt.Errorf("%q is outside the repository; "+
+			"a repository config may only name a prompt file inside the repository itself", path)
+	}
+	return nil
 }
