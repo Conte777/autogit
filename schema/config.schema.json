@@ -289,6 +289,312 @@
         },
         "additionalProperties": false
       }
+    },
+    "workspaces": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "$schema": {
+            "type": "string",
+            "description": "URL of the JSON schema for this file"
+          },
+          "provider": {
+            "type": "string",
+            "description": "which provider answers; global config only",
+            "enum": [
+              "anthropic",
+              "claude-cli",
+              "gemini",
+              "openai"
+            ]
+          },
+          "preset": {
+            "type": "string",
+            "description": "name of the commit/branch format"
+          },
+          "confirm": {
+            "type": "boolean",
+            "description": "ask before committing; honoured only on an interactive terminal"
+          },
+          "preparedMessage": {
+            "type": "boolean",
+            "description": "commit the message git prepared for a merge, squash merge, cherry-pick or revert instead of generating one"
+          },
+          "attempts": {
+            "type": "integer",
+            "description": "how many times the model may be asked to fix its output"
+          },
+          "timeout": {
+            "type": "string",
+            "description": "budget for one generation, e.g. 90s",
+            "pattern": "^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$"
+          },
+          "protectedBranches": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "branch name globs that require --force"
+          },
+          "diff": {
+            "type": "object",
+            "properties": {
+              "maxBytes": {
+                "type": "integer",
+                "description": "truncation budget for the diff text"
+              },
+              "context": {
+                "type": "integer",
+                "description": "lines of context per hunk"
+              },
+              "ignoreSubmodules": {
+                "type": "boolean"
+              },
+              "excludePathspecs": {
+                "type": [
+                  "null",
+                  "array"
+                ],
+                "items": {
+                  "type": "string"
+                },
+                "description": "git pathspecs kept out of the diff body; the file list stays complete"
+              }
+            },
+            "additionalProperties": false
+          },
+          "mcp": {
+            "type": "object",
+            "properties": {
+              "allowProtectedBranch": {
+                "type": "boolean",
+                "description": "let the commit tool ask the user for consent on a protected branch instead of refusing"
+              }
+            },
+            "additionalProperties": false
+          },
+          "providers": {
+            "type": "object",
+            "properties": {
+              "anthropic": {
+                "type": "object",
+                "properties": {
+                  "model": {
+                    "type": "string"
+                  },
+                  "baseUrl": {
+                    "type": "string",
+                    "description": "override for self-hosted or compatible endpoints"
+                  },
+                  "maxTokens": {
+                    "type": "integer"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "claude-cli": {
+                "type": "object",
+                "properties": {
+                  "binary": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string"
+                  },
+                  "extraArgs": {
+                    "type": [
+                      "null",
+                      "array"
+                    ],
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "additionalProperties": false
+              },
+              "openai": {
+                "type": "object",
+                "properties": {
+                  "model": {
+                    "type": "string"
+                  },
+                  "baseUrl": {
+                    "type": "string",
+                    "description": "override for self-hosted or compatible endpoints"
+                  },
+                  "maxTokens": {
+                    "type": "integer"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "gemini": {
+                "type": "object",
+                "properties": {
+                  "model": {
+                    "type": "string"
+                  },
+                  "baseUrl": {
+                    "type": "string",
+                    "description": "override for self-hosted or compatible endpoints"
+                  },
+                  "maxTokens": {
+                    "type": "integer"
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          },
+          "presets": {
+            "type": "object",
+            "description": "per-preset overrides, merged over the built-in of the same name",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "commit": {
+                  "type": "object",
+                  "properties": {
+                    "prompt": {
+                      "type": "string",
+                      "description": "path to a prompt file; relative paths resolve against the config file that declares them, and a repository config may only name a file inside the repository"
+                    },
+                    "types": {
+                      "type": [
+                        "null",
+                        "array"
+                      ],
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "allowed subject types"
+                    },
+                    "ticketPattern": {
+                      "type": "string",
+                      "description": "regexp matching a ticket id in the branch name"
+                    },
+                    "maxSubject": {
+                      "type": "integer",
+                      "description": "subject length limit in characters"
+                    },
+                    "lowercaseDesc": {
+                      "type": "boolean"
+                    },
+                    "noTrailingPeriod": {
+                      "type": "boolean"
+                    },
+                    "maxBodyLine": {
+                      "type": "integer",
+                      "description": "body wrap width; 0 means no limit"
+                    },
+                    "footers": {
+                      "type": "boolean"
+                    },
+                    "body": {
+                      "type": "object",
+                      "properties": {
+                        "mode": {
+                          "type": "string",
+                          "description": "off, auto or always"
+                        },
+                        "minFiles": {
+                          "type": "integer",
+                          "description": "auto: ask for a body from this many changed files"
+                        },
+                        "minLines": {
+                          "type": "integer",
+                          "description": "auto: ask for a body from this many changed lines"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "scope": {
+                      "type": "object",
+                      "properties": {
+                        "mode": {
+                          "type": "string",
+                          "description": "off, suggest or whitelist"
+                        },
+                        "values": {
+                          "type": [
+                            "null",
+                            "array"
+                          ],
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "whitelist: the allowed scopes"
+                        },
+                        "top": {
+                          "type": "integer",
+                          "description": "suggest: how many scopes to mine from history"
+                        },
+                        "minConventional": {
+                          "type": "integer",
+                          "description": "suggest: skip the vocabulary below this many conventional commits in history"
+                        },
+                        "historyDepth": {
+                          "type": "integer",
+                          "description": "suggest: how many commits to read"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "branch": {
+                  "type": "object",
+                  "properties": {
+                    "prompt": {
+                      "type": "string"
+                    },
+                    "types": {
+                      "type": [
+                        "null",
+                        "array"
+                      ],
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "ticketPattern": {
+                      "type": "string"
+                    },
+                    "maxWords": {
+                      "type": "integer"
+                    },
+                    "maxSlugLen": {
+                      "type": "integer"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "branch name template over .Prefix, .Type, .Ticket and .Slug"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "path": {
+            "type": "string",
+            "description": "directory whose repositories the rule applies to"
+          }
+        },
+        "additionalProperties": false
+      },
+      "description": "settings scoped to a directory tree; global config only"
     }
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",

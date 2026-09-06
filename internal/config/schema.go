@@ -31,6 +31,44 @@ func Schema() ([]byte, error) {
 // global file and repoConfig for the repository one, which is why the provider
 // enum is applied only where a `provider` property exists.
 func documentSchema[T any]() (*jsonschema.Schema, error) {
+	workspace, err := workspaceSchema()
+	if err != nil {
+		return nil, err
+	}
+	types, err := typeSchemas(workspace)
+	if err != nil {
+		return nil, err
+	}
+	s, err := jsonschema.For[T](&jsonschema.ForOptions{TypeSchemas: types})
+	if err != nil {
+		return nil, err
+	}
+	applyProviderEnum(s)
+	clearRequired(s)
+	return s, nil
+}
+
+// workspaceSchema is the Config schema with `path` added and `workspaces`
+// removed: a rule carries every key of the global file, and does not nest.
+func workspaceSchema() (*jsonschema.Schema, error) {
+	types, err := typeSchemas(&jsonschema.Schema{Type: "object"})
+	if err != nil {
+		return nil, err
+	}
+	s, err := jsonschema.For[Config](&jsonschema.ForOptions{TypeSchemas: types})
+	if err != nil {
+		return nil, err
+	}
+	delete(s.Properties, "workspaces")
+	s.Properties["path"] = &jsonschema.Schema{
+		Type:        "string",
+		Description: "directory whose repositories the rule applies to",
+	}
+	applyProviderEnum(s)
+	return s, nil
+}
+
+func typeSchemas(workspace *jsonschema.Schema) (map[reflect.Type]*jsonschema.Schema, error) {
 	presetSchema, err := jsonschema.For[preset.Preset](nil)
 	if err != nil {
 		return nil, err
@@ -39,33 +77,31 @@ func documentSchema[T any]() (*jsonschema.Schema, error) {
 	if err != nil {
 		return nil, err
 	}
-	s, err := jsonschema.For[T](&jsonschema.ForOptions{
-		TypeSchemas: map[reflect.Type]*jsonschema.Schema{
-			reflect.TypeFor[Duration](): {
-				Type:        "string",
-				Description: "Go duration string, e.g. 90s, 2m or 1m30s",
-				Pattern:     `^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$`,
-			},
-			// PresetOverride is raw JSON at runtime; the schema shows the shape
-			// a user actually writes. The only raw section left is the
-			// repository file's diff, which carries its own narrower whitelist.
-			reflect.TypeFor[PresetOverride]():  presetSchema,
-			reflect.TypeFor[json.RawMessage](): repoDiffSchema,
+	return map[reflect.Type]*jsonschema.Schema{
+		reflect.TypeFor[Duration](): {
+			Type:        "string",
+			Description: "Go duration string, e.g. 90s, 2m or 1m30s",
+			Pattern:     `^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$`,
 		},
-	})
-	if err != nil {
-		return nil, err
-	}
+		// PresetOverride is raw JSON at runtime; the schema shows the shape
+		// a user actually writes. The only raw section left is the
+		// repository file's diff, which carries its own narrower whitelist.
+		reflect.TypeFor[PresetOverride]():  presetSchema,
+		reflect.TypeFor[json.RawMessage](): repoDiffSchema,
+		reflect.TypeFor[Workspace]():       workspace,
+	}, nil
+}
 
-	// The list of providers comes from the table, not a struct tag: a name
-	// spelled in two places is the drift this schema exists to catch.
-	if p, ok := s.Properties["provider"]; ok {
-		for _, name := range ProviderNames() {
-			p.Enum = append(p.Enum, name)
-		}
+// applyProviderEnum takes the list of providers from the table, not a struct
+// tag: a name spelled in two places is the drift this schema exists to catch.
+func applyProviderEnum(s *jsonschema.Schema) {
+	p, ok := s.Properties["provider"]
+	if !ok {
+		return
 	}
-	clearRequired(s)
-	return s, nil
+	for _, name := range ProviderNames() {
+		p.Enum = append(p.Enum, name)
+	}
 }
 
 // clearRequired walks the schema dropping every "required" list. A config file

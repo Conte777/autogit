@@ -30,13 +30,15 @@ type Config struct {
 	MCP               MCP                       `json:"mcp"`
 	Providers         Providers                 `json:"providers"`
 	Presets           map[string]PresetOverride `json:"presets,omitempty" jsonschema:"per-preset overrides, merged over the built-in of the same name"`
+	Workspaces        []Workspace               `json:"workspaces,omitempty" jsonschema:"settings scoped to a directory tree; global config only"`
 
 	// presetLayers keeps overrides in the order they were declared, together
 	// with the directory each came from, because prompt paths resolve against
 	// the file that declared them.
 	presetLayers []presetLayer
 	// sources lists the config files that were actually read, for `doctor`.
-	sources []string
+	sources          []string
+	workspaceMatches []string
 	// env is the environment Load read, kept so that a `~` in a prompt path
 	// expands against the same one rather than the process's.
 	env func(string) (string, bool)
@@ -153,6 +155,10 @@ func Default() Config {
 
 // Sources lists the config files that were read, nearest last.
 func (c *Config) Sources() []string { return c.sources }
+
+// WorkspaceMatches lists the workspace rules that covered the repository,
+// nearest last.
+func (c *Config) WorkspaceMatches() []string { return c.workspaceMatches }
 
 // Preset resolves the effective preset: the built-in of that name with every
 // declared override decoded on top, prompt paths already made absolute.

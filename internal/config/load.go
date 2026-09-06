@@ -48,6 +48,9 @@ func Load(opts Options) (*Config, error) {
 		if err := applyGlobal(&cfg, data, globalPath); err != nil {
 			return nil, err
 		}
+		if err := applyWorkspaces(&cfg, globalPath, opts.RepoRoot); err != nil {
+			return nil, err
+		}
 	}
 
 	if repoPath := repoPathFor(opts); repoPath != "" {
@@ -176,7 +179,7 @@ func applyRepo(cfg *Config, data []byte, path string) error {
 		return configErr("%s: %v\n"+
 			"a repository config may only set preset, presets, protectedBranches, confirm, "+
 			"preparedMessage, diff.maxBytes and diff.context; "+
-			"provider, provider settings and mcp are global-only", path, err)
+			"provider, provider settings, mcp and workspaces are global-only", path, err)
 	}
 
 	if repo.Preset != "" {
@@ -414,6 +417,24 @@ func resolvePath(path, base string, env func(string) (string, bool)) string {
 		return path
 	}
 	return filepath.Join(base, path)
+}
+
+// absPath expands `~` and makes a relative path absolute against the working
+// directory, so a repository root reaches the workspace matcher in the same
+// shape a rule does.
+func absPath(path string, env func(string) (string, bool)) string {
+	if path == "" {
+		return ""
+	}
+	expanded := expandHome(path, env)
+	if filepath.IsAbs(expanded) {
+		return filepath.Clean(expanded)
+	}
+	abs, err := filepath.Abs(expanded)
+	if err != nil {
+		return filepath.Clean(expanded)
+	}
+	return abs
 }
 
 func expandHome(path string, env func(string) (string, bool)) string {

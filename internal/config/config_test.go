@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -768,4 +769,287 @@ func TestCheckFilesHoldsARepoDiffToTheWhitelist(t *testing.T) {
 	if len(checks) != 1 || checks[0].Err == nil {
 		t.Fatalf("CheckFiles() = %+v; a global-only diff key passed in a repository config", checks)
 	}
+}
+
+// workspaceConfig writes a global config carrying the given workspace rules,
+// and returns its path.
+func workspaceConfig(t *testing.T, dir, rules string) string {
+	t.Helper()
+	return writeFile(t, dir, "config.json", `{"workspaces":`+rules+`}`)
+}
+
+func TestWorkspaceRuleScopesSettingsToItsTree(t *testing.T) {
+	dir := t.TempDir()
+	repoRoot := filepath.Join(dir, "work", "releases", "deep", "service")
+	if err := os.MkdirAll(repoRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := workspaceConfig(t, dir, `[{"path":`+quote(filepath.Join(dir, "work", "releases"))+`,"preset":"ticket","attempts":5}]`)
+
+	cfg, err := config.Load(config.Options{GlobalPath: path, RepoRoot: repoRoot, Env: envOf(nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Preset != "ticket" || cfg.Attempts != 5 {
+		t.Errorf("Preset = %q, Attempts = %d", cfg.Preset, cfg.Attempts)
+	}
+	if got := cfg.WorkspaceMatches(); len(got) != 1 {
+		t.Errorf("WorkspaceMatches() = %v, want one rule", got)
+	}
+}
+
+func TestWorkspaceRuleOutsideTheTreeIsIgnored(t *testing.T) {
+	dir := t.TempDir()
+	repoRoot := filepath.Join(dir, "elsewhere")
+	if err := os.MkdirAll(repoRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := workspaceConfig(t, dir, `[{"path":`+quote(filepath.Join(dir, "work"))+`,"preset":"ticket"}]`)
+
+	cfg, err := config.Load(config.Options{GlobalPath: path, RepoRoot: repoRoot, Env: envOf(nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Preset != "conventional" {
+		t.Errorf("Preset = %q, want the default", cfg.Preset)
+	}
+	if got := cfg.WorkspaceMatches(); len(got) != 0 {
+		t.Errorf("WorkspaceMatches() = %v, want none", got)
+	}
+}
+
+func TestWorkspaceMatchIsPerSegment(t *testing.T) {
+	dir := t.TempDir()
+	repoRoot := filepath.Join(dir, "friday-releases", "service")
+	if err := os.MkdirAll(repoRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := workspaceConfig(t, dir, `[{"path":`+quote(filepath.Join(dir, "friday"))+`,"preset":"ticket"}]`)
+
+	cfg, err := config.Load(config.Options{GlobalPath: path, RepoRoot: repoRoot, Env: envOf(nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Preset != "conventional" {
+		t.Errorf("Preset = %q: a rule for .../friday caught .../friday-releases", cfg.Preset)
+	}
+}
+
+func TestDeeperWorkspaceRuleRefinesTheShallowerOne(t *testing.T) {
+	dir := t.TempDir()
+	repoRoot := filepath.Join(dir, "work", "inner", "service")
+	if err := os.MkdirAll(repoRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Declared deepest first, so the order in the file cannot be what decides.
+	path := workspaceConfig(t, dir, `[
+	  {"path":`+quote(filepath.Join(dir, "work", "inner"))+`,"preset":"ticket"},
+	  {"path":`+quote(filepath.Join(dir, "work"))+`,"preset":"conventional","attempts":7}
+	]`)
+
+	cfg, err := config.Load(config.Options{GlobalPath: path, RepoRoot: repoRoot, Env: envOf(nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Preset != "ticket" {
+		t.Errorf("Preset = %q, want the deeper rule to win", cfg.Preset)
+	}
+	if cfg.Attempts != 7 {
+		t.Errorf("Attempts = %d, want the shallower rule to still apply", cfg.Attempts)
+	}
+	if got := cfg.WorkspaceMatches(); len(got) != 2 {
+		t.Errorf("WorkspaceMatches() = %v, want both rules", got)
+	}
+}
+
+func TestWorkspaceMatchFollowsTheFilesystemOnCase(t *testing.T) {
+	dir := t.TempDir()
+	repoRoot := filepath.Join(dir, "Work", "service")
+	if err := os.MkdirAll(repoRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := workspaceConfig(t, dir, `[{"path":`+quote(filepath.Join(dir, "work"))+`,"preset":"ticket"}]`)
+
+	cfg, err := config.Load(config.Options{GlobalPath: path, RepoRoot: repoRoot, Env: envOf(nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "conventional"
+	if runtime.GOOS == "darwin" {
+		want = "ticket"
+	}
+	if cfg.Preset != want {
+		t.Errorf("Preset = %q, want %q on %s", cfg.Preset, want, runtime.GOOS)
+	}
+}
+
+func TestWorkspacePathExpandsAgainstTheGivenHome(t *testing.T) {
+	home := t.TempDir()
+	repoRoot := filepath.Join(home, "work", "service")
+	if err := os.MkdirAll(repoRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := workspaceConfig(t, home, `[{"path":"~/work","preset":"ticket"}]`)
+
+	cfg, err := config.Load(config.Options{
+		GlobalPath: path,
+		RepoRoot:   repoRoot,
+		Env:        envOf(map[string]string{"HOME": home}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Preset != "ticket" {
+		t.Errorf("Preset = %q, want the rule to expand ~", cfg.Preset)
+	}
+}
+
+func TestWorkspaceRuleLosesToTheRepositoryFile(t *testing.T) {
+	dir := t.TempDir()
+	repoRoot := filepath.Join(dir, "work", "service")
+	if err := os.MkdirAll(repoRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, repoRoot, config.FileName, `{"preset":"ticket"}`)
+	path := workspaceConfig(t, dir, `[{"path":`+quote(filepath.Join(dir, "work"))+`,"preset":"conventional"}]`)
+
+	cfg, err := config.Load(config.Options{GlobalPath: path, RepoRoot: repoRoot, Env: envOf(nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Preset != "ticket" {
+		t.Errorf("Preset = %q, want the repository file to still have the last word", cfg.Preset)
+	}
+}
+
+func TestWorkspacePresetOverrideResolvesAgainstTheGlobalFile(t *testing.T) {
+	dir := t.TempDir()
+	repoRoot := filepath.Join(dir, "work", "service")
+	if err := os.MkdirAll(repoRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, dir, "commit.md", "write a commit message")
+	path := workspaceConfig(t, dir, `[{
+	  "path":`+quote(filepath.Join(dir, "work"))+`,
+	  "preset":"ticket",
+	  "presets":{"ticket":{"commit":{"prompt":"commit.md"}}}
+	}]`)
+
+	cfg, err := config.Load(config.Options{GlobalPath: path, RepoRoot: repoRoot, Env: envOf(nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := cfg.ResolvePreset()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(dir, "commit.md"); p.Commit.Prompt != want {
+		t.Errorf("Commit.Prompt = %q, want %q", p.Commit.Prompt, want)
+	}
+}
+
+func TestDormantWorkspaceRuleStillRejectsAnUnknownKey(t *testing.T) {
+	dir := t.TempDir()
+	repoRoot := filepath.Join(dir, "elsewhere")
+	if err := os.MkdirAll(repoRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := workspaceConfig(t, dir, `[{"path":`+quote(filepath.Join(dir, "work"))+`,"presset":"ticket"}]`)
+
+	if _, err := config.Load(config.Options{GlobalPath: path, RepoRoot: repoRoot, Env: envOf(nil)}); err == nil {
+		t.Error("Load accepted a typo in a rule that does not match")
+	} else if !strings.Contains(err.Error(), "presset") {
+		t.Errorf("error = %v, want it to name the unknown key", err)
+	}
+}
+
+func TestWorkspaceRulesDoNotNest(t *testing.T) {
+	dir := t.TempDir()
+	path := workspaceConfig(t, dir,
+		`[{"path":`+quote(dir)+`,"workspaces":[{"path":`+quote(dir)+`}]}]`)
+
+	if _, err := config.Load(config.Options{GlobalPath: path, RepoRoot: dir, Env: envOf(nil)}); err == nil {
+		t.Error("Load accepted a workspace rule nested in a workspace rule")
+	}
+}
+
+func TestWorkspaceRuleNeedsAPath(t *testing.T) {
+	dir := t.TempDir()
+	path := workspaceConfig(t, dir, `[{"preset":"ticket"}]`)
+
+	if _, err := config.Load(config.Options{GlobalPath: path, RepoRoot: dir, Env: envOf(nil)}); err == nil {
+		t.Error("Load accepted a workspace rule without a path")
+	}
+}
+
+func TestRepoFileCannotSetWorkspaces(t *testing.T) {
+	repoRoot := t.TempDir()
+	writeFile(t, repoRoot, config.FileName,
+		`{"workspaces":[{"path":`+quote(repoRoot)+`,"provider":"anthropic"}]}`)
+
+	if _, err := config.Load(config.Options{RepoRoot: repoRoot, Env: envOf(nil)}); err == nil {
+		t.Error("a repository file was allowed to declare workspaces")
+	}
+	checks := config.CheckFiles(config.Options{RepoRoot: repoRoot, Env: envOf(nil)})
+	if len(checks) != 1 || checks[0].Err == nil {
+		t.Errorf("CheckFiles = %+v, want the repository file rejected", checks)
+	}
+}
+
+func TestWorkspaceDepthComesFromTheMatchedForm(t *testing.T) {
+	dir := t.TempDir()
+	repoRoot := filepath.Join(dir, "tree", "narrow", "service")
+	if err := os.MkdirAll(repoRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "deep", "nest"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "deep", "nest", "link")
+	if err := os.Symlink(filepath.Join(dir, "tree"), link); err != nil {
+		t.Fatal(err)
+	}
+	path := workspaceConfig(t, dir, `[
+	  {"path":`+quote(link)+`,"preset":"ticket","attempts":5},
+	  {"path":`+quote(filepath.Join(dir, "tree", "narrow"))+`,"preset":"conventional"}
+	]`)
+
+	cfg, err := config.Load(config.Options{GlobalPath: path, RepoRoot: repoRoot, Env: envOf(nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Preset != "conventional" {
+		t.Errorf("Preset = %q: a shallow directory reached through a long symlink sorted as the deeper rule", cfg.Preset)
+	}
+	if cfg.Attempts != 5 {
+		t.Errorf("Attempts = %d, want the symlinked rule to still apply", cfg.Attempts)
+	}
+}
+
+func TestWorkspaceMatchesARepoRootWrittenWithATilde(t *testing.T) {
+	home := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(home, "work", "service"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := workspaceConfig(t, home, `[{"path":"~/work","preset":"ticket"}]`)
+
+	cfg, err := config.Load(config.Options{
+		GlobalPath: path,
+		RepoRoot:   "~/work/service",
+		Env:        envOf(map[string]string{"HOME": home}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Preset != "ticket" {
+		t.Errorf("Preset = %q, want the repository root to expand ~ too", cfg.Preset)
+	}
+}
+
+func quote(s string) string {
+	b, err := json.Marshal(s)
+	if err != nil {
+		panic(err)
+	}
+	return string(b)
 }
