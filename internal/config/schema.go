@@ -43,11 +43,32 @@ func Schema() ([]byte, error) {
 		}
 	}
 
+	clearRequired(s)
+
 	out, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {
 		return nil, err
 	}
 	return append(out, '\n'), nil
+}
+
+// clearRequired walks the schema dropping every "required" list. A config file
+// is a partial document merged over the defaults, so the fields the generator
+// takes for required — the ones whose Go tag carries no omitempty — are
+// optional in anything a user actually writes.
+func clearRequired(s *jsonschema.Schema) {
+	if s == nil {
+		return
+	}
+	s.Required = nil
+	for _, sub := range s.Properties {
+		clearRequired(sub)
+	}
+	for _, sub := range s.Defs {
+		clearRequired(sub)
+	}
+	clearRequired(s.Items)
+	clearRequired(s.AdditionalProperties)
 }
 
 // ValidateDocument checks raw config bytes against the generated schema. It

@@ -603,3 +603,18 @@ func TestRepoLayerKeepsAPromptPathItDoesNotDeclare(t *testing.T) {
 		t.Errorf("MaxSubject = %d, want the repo override", p.Commit.MaxSubject)
 	}
 }
+
+// The generator marks a field required when its Go tag carries no omitempty,
+// which would make every hand-written config invalid — a config file is
+// partial, merged over the defaults.
+func TestValidateDocumentAcceptsAPartialConfig(t *testing.T) {
+	for _, doc := range []string{
+		`{"preset":"ticket"}`,
+		`{"diff":{"context":5}}`,
+		`{"presets":{"conventional":{"commit":{"body":{"mode":"always"}}}}}`,
+	} {
+		if err := config.ValidateDocument([]byte(doc)); err != nil {
+			t.Errorf("ValidateDocument(%s): %v", doc, err)
+		}
+	}
+}
