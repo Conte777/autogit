@@ -171,6 +171,141 @@ func TestProtectedBranchQuestionInATerminal(t *testing.T) {
 	}
 }
 
+// consentRecorder is the channel to the user an MCP-like surface supplies.
+type consentRecorder struct {
+	grant    bool
+	err      error
+	branches []string
+}
+
+func (c *consentRecorder) ask(_ context.Context, branch string) (bool, error) {
+	c.branches = append(c.branches, branch)
+	return c.grant, c.err
+}
+
+func TestProtectedBranchConsentLetsTheCommitThrough(t *testing.T) {
+	e := newEnv(t, "feat: add the file")
+	e.cfg.ProtectedBranches = []string{"main"}
+	e.cfg.MCP.AllowProtectedBranch = true
+	e.write("a.txt", "one\n")
+	e.git("add", ".")
+
+	consent := &consentRecorder{grant: true}
+	if _, err := e.app().Commit(context.Background(), app.CommitRequest{
+		Stage: app.StageStaged, Consent: consent.ask,
+	}); err != nil {
+		t.Fatalf("consent did not let the commit through: %v", err)
+	}
+	if want := []string{"main"}; len(consent.branches) != 1 || consent.branches[0] != want[0] {
+		t.Errorf("asked about %v, want %v", consent.branches, want)
+	}
+}
+
+func TestProtectedBranchWithheldConsentCommitsNothing(t *testing.T) {
+	e := newEnv(t, "feat: add the file")
+	e.cfg.ProtectedBranches = []string{"main"}
+	e.cfg.MCP.AllowProtectedBranch = true
+	e.write("a.txt", "one\n")
+	e.git("add", ".")
+
+	consent := &consentRecorder{grant: false}
+	_, err := e.app().Commit(context.Background(), app.CommitRequest{
+		Stage: app.StageStaged, Consent: consent.ask,
+	})
+	var withheld *app.ConsentError
+	if !errors.As(err, &withheld) {
+		t.Fatalf("err = %v, want *ConsentError", err)
+	}
+	if withheld.Branch != "main" {
+		t.Errorf("Branch = %q", withheld.Branch)
+	}
+	if e.head() != "" {
+		t.Error("a refusal still created a commit")
+	}
+}
+
+func TestProtectedBranchConsentNotOfferedUntilConfigured(t *testing.T) {
+	e := newEnv(t, "feat: add the file")
+	e.cfg.ProtectedBranches = []string{"main"}
+	e.write("a.txt", "one\n")
+	e.git("add", ".")
+
+	consent := &consentRecorder{grant: true}
+	_, err := e.app().Commit(context.Background(), app.CommitRequest{
+		Stage: app.StageStaged, Consent: consent.ask,
+	})
+	var prot *app.ProtectedBranchError
+	if !errors.As(err, &prot) {
+		t.Fatalf("err = %v, want *ProtectedBranchError while mcp.allowProtectedBranch is off", err)
+	}
+	if len(consent.branches) != 0 {
+		t.Errorf("the user was asked anyway: %v", consent.branches)
+	}
+	if !strings.Contains(err.Error(), "--force") {
+		t.Errorf("err = %v, want the human path spelled out", err)
+	}
+}
+
+func TestProtectedBranchUnreachableUserIsNotARefusal(t *testing.T) {
+	e := newEnv(t, "feat: add the file")
+	e.cfg.ProtectedBranches = []string{"main"}
+	e.cfg.MCP.AllowProtectedBranch = true
+	e.write("a.txt", "one\n")
+	e.git("add", ".")
+
+	unreachable := errors.New("client cannot ask the user")
+	consent := &consentRecorder{err: unreachable}
+	_, err := e.app().Commit(context.Background(), app.CommitRequest{
+		Stage: app.StageStaged, Consent: consent.ask,
+	})
+	if !errors.Is(err, unreachable) {
+		t.Fatalf("err = %v, want the channel's own failure", err)
+	}
+	var withheld *app.ConsentError
+	if errors.As(err, &withheld) {
+		t.Error("a client that cannot ask was reported as a user saying no")
+	}
+	if e.head() != "" {
+		t.Error("the commit landed anyway")
+	}
+}
+
+func TestForceSkipsTheConsentChannel(t *testing.T) {
+	e := newEnv(t, "feat: add the file")
+	e.cfg.ProtectedBranches = []string{"main"}
+	e.cfg.MCP.AllowProtectedBranch = true
+	e.write("a.txt", "one\n")
+	e.git("add", ".")
+
+	consent := &consentRecorder{grant: false}
+	if _, err := e.app().Commit(context.Background(), app.CommitRequest{
+		Stage: app.StageStaged, Force: true, Consent: consent.ask,
+	}); err != nil {
+		t.Fatalf("--force did not get through: %v", err)
+	}
+	if len(consent.branches) != 0 {
+		t.Errorf("--force still asked the user: %v", consent.branches)
+	}
+}
+
+func TestPreviewNeverAsksForConsent(t *testing.T) {
+	e := newEnv(t, "feat: add the file")
+	e.cfg.ProtectedBranches = []string{"main"}
+	e.cfg.MCP.AllowProtectedBranch = true
+	e.write("a.txt", "one\n")
+	e.git("add", ".")
+
+	consent := &consentRecorder{grant: false}
+	if _, err := e.app().Commit(context.Background(), app.CommitRequest{
+		Stage: app.StageStaged, Preview: true, Consent: consent.ask,
+	}); err != nil {
+		t.Fatalf("commit-msg refused on a protected branch: %v", err)
+	}
+	if len(consent.branches) != 0 {
+		t.Errorf("a preview asked the user: %v", consent.branches)
+	}
+}
+
 func TestCommitMsgWorksOnProtectedBranchAndCommitsNothing(t *testing.T) {
 	e := newEnv(t, "feat: add the file")
 	e.cfg.ProtectedBranches = []string{"main"}

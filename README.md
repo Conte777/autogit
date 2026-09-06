@@ -122,6 +122,9 @@ CLI flags → `AUTOGIT_*` → `<repo>/.autogit.json` → `$AUTOGIT_CONFIG` or
   "attempts": 3,
   "timeout": "90s",
   "protectedBranches": ["main", "master", "develop", "stage", "staging", "release/*"],
+  "mcp": {
+    "allowProtectedBranch": false
+  },
   "diff": {
     "maxBytes": 40000,
     "context": 3,
@@ -154,13 +157,16 @@ file is a startup error, not a warning.
 
 A `.autogit.json` you cloned along with someone else's repository may set only
 `preset`, `presets.*`, `protectedBranches`, `confirm`, `preparedMessage`,
-`diff.maxBytes` and `diff.context`. `provider`
-and `providers.*` are global-only: otherwise `providers.claude-cli.binary` from
+`diff.maxBytes` and `diff.context`. `provider`,
+`providers.*` and `mcp` are global-only: otherwise `providers.claude-cli.binary` from
 a stranger's repo would be arbitrary code execution, and `baseUrl` would be a
 key collector. `diff.excludePathspecs` and `diff.ignoreSubmodules` are
 global-only too: each hides the body of a change from the model while the file
 list stays complete, so a repo excluding `*.go` would earn a commit message that
-describes none of the code that changed. `diff.maxBytes` is accepted only
+describes none of the code that changed. `mcp.allowProtectedBranch` is
+global-only because a repository able to set it would be handing an agent the
+right to commit to the very branches the same file declares protected.
+`diff.maxBytes` is accepted only
 downwards, so a repo cannot turn the diff read into an out-of-memory one.
 Unknown keys are errors everywhere — a typo in `protectedBranches` must not
 silently switch branch protection off.
@@ -289,7 +295,16 @@ Runs the MCP server on stdio for an agent that has no plugin to carry it.
 It exposes `commit` and `branch`. The tool generates and validates the message
 itself; the agent never writes or passes one. There is no
 `allowProtectedBranch` parameter, so a model cannot talk itself into committing
-on `main` — that takes a human at a terminal with `--force`.
+on `main`.
+
+By default a protected branch is refused outright, and only a human lifts it —
+`autogit commit --force` in a terminal, or `/autogit:commit force` in Claude
+Code. Set `mcp.allowProtectedBranch` in your global config and the server asks
+you instead: it sends the question through the MCP client, you answer it, and
+the answer travels back over a channel the model never sees. The consent covers
+the branch it was given for and expires as soon as a commit lands somewhere
+else. A client that does not support elicitation gets the refusal and the two
+human paths.
 
 ## Two ways to reach Claude
 

@@ -50,6 +50,23 @@ func (e *ProtectedBranchError) Error() string {
 	return fmt.Sprintf("branch %q is protected: %s", e.Branch, e.Hint)
 }
 
+// ConsentFunc puts one protected branch to the user and reports their answer.
+// It is the second form of the protected-branch override, `--force` being the
+// first, and it always resolves to a human.
+type ConsentFunc func(ctx context.Context, branch string) (bool, error)
+
+// ConsentError means the user was asked about a protected branch over a
+// surface that can reach them, and did not agree.
+type ConsentError struct {
+	Branch string
+}
+
+func (e *ConsentError) Error() string {
+	return fmt.Sprintf("the user did not consent to committing on protected branch %q: "+
+		"do not repeat this call and do not commit around autogit; ask the user what to do instead",
+		e.Branch)
+}
+
 // ErrCanceled means the user said no.
 var ErrCanceled = errors.New("cancelled")
 
