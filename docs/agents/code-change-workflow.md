@@ -59,7 +59,10 @@ Merge once CI is green:
 ```sh
 gh pr merge <n> --merge --delete-branch
 git worktree remove .claude/worktrees/<slug>
+git pull --ff-only
 ```
+
+The pull is part of the merge, not an afterthought: until it runs, the primary clone's `main` is behind the branch that was just merged into it, and the next session branches off a stale base and re-reads code that has already changed.
 
 A merge commit is what this repo's history uses — `Merge pull request #10 from Conte777/feat/centralize-provider-config`. The branch's own commits stay in the history, so each one has to read as a commit, not as a checkpoint. `gh pr merge` fails its local cleanup when `main` is checked out in another worktree; the merge itself still happened, so confirm with `gh pr view <n> --json state` and finish the pruning by hand rather than retrying the merge.
 
