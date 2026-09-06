@@ -53,9 +53,15 @@ Comparison is per path segment, so `~/Work/friday` does not cover
 `~/Work/friday-releases`; `strings.HasPrefix` would, and would do it silently.
 Both sides are also compared with symlinks resolved, because a rule may name a
 directory that does not exist yet while the repository path reaches the same
-place through a link. On macOS segments compare case-insensitively, following
-APFS: a rule written `~/Work` has to cover the path the shell hands over as
-`~/work`.
+place through a link — and the depth that orders the matches is then taken from
+the form that matched, so a shallow directory reached through a long symlink
+does not sort as the more specific rule. On macOS segments compare
+case-insensitively, following APFS: a rule written `~/Work` has to cover the
+path the shell hands over as `~/work`.
+
+A `path` is expanded (`~`) and made absolute; a relative one resolves against
+the directory of the global config file, the same base a prompt path in
+`presets.*` already uses.
 
 ## Consequences
 

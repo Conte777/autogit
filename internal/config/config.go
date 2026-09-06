@@ -44,34 +44,6 @@ type Config struct {
 	env func(string) (string, bool)
 }
 
-// Workspace scopes the settings to a directory tree.
-type Workspace struct {
-	Path string `json:"path" jsonschema:"directory whose repositories the rule applies to"`
-
-	raw json.RawMessage
-}
-
-func (w Workspace) MarshalJSON() ([]byte, error) {
-	if len(w.raw) == 0 {
-		return json.Marshal(struct {
-			Path string `json:"path"`
-		}{w.Path})
-	}
-	return w.raw, nil
-}
-
-func (w *Workspace) UnmarshalJSON(b []byte) error {
-	var head struct {
-		Path string `json:"path"`
-	}
-	if err := json.Unmarshal(b, &head); err != nil {
-		return err
-	}
-	w.Path = head.Path
-	w.raw = append(json.RawMessage(nil), b...)
-	return nil
-}
-
 // Diff controls how much of the change the model gets to see.
 type Diff struct {
 	MaxBytes         int      `json:"maxBytes,omitempty" jsonschema:"truncation budget for the diff text"`

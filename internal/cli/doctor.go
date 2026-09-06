@@ -55,7 +55,7 @@ func runDoctor(ctx context.Context, g *globals, out *ui.UI) error {
 	} else {
 		out.Print("config       %s", strings.Join(sources, ", "))
 	}
-	reportWorkspaces(out, cfg)
+	reportWorkspaces(out, cfg, repoRoot)
 
 	// After the config, because whether a prepared message will actually be
 	// used is a configuration answer, not a repository one.
@@ -81,15 +81,19 @@ func runDoctor(ctx context.Context, g *globals, out *ui.UI) error {
 
 // reportWorkspaces names the rules that scoped the settings to this
 // repository. A rule that silently changes the preset is worse than no rule.
-func reportWorkspaces(out *ui.UI, cfg *config.Config) {
+func reportWorkspaces(out *ui.UI, cfg *config.Config, repoRoot string) {
 	if len(cfg.Workspaces) == 0 {
+		return
+	}
+	if repoRoot == "" {
+		out.Print("workspaces   %d declared, not matched without a repository", len(cfg.Workspaces))
 		return
 	}
 	if matched := cfg.WorkspaceMatches(); len(matched) > 0 {
 		out.Print("workspaces   %s", strings.Join(matched, ", "))
-	} else {
-		out.Print("workspaces   %d declared, none cover this repository", len(cfg.Workspaces))
+		return
 	}
+	out.Print("workspaces   %d declared, none cover this repository", len(cfg.Workspaces))
 }
 
 // reportSchema prints the verdict on each config file and returns the first

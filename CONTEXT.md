@@ -145,6 +145,11 @@ _Avoid_: approval, permission flag, confirmation
 The user's own config file. The only place that may choose a provider.
 _Avoid_: user config, home config
 
+**Workspace rule**:
+An entry of `workspaces` in the global config: a directory plus any settings the
+global config may carry, applied to every repository under that directory.
+_Avoid_: workspace config, directory config, scope
+
 **Repository config**:
 The config file carried by a cloned repository. Untrusted: it may shape the
 format and nothing else.

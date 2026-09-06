@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -159,127 +157,6 @@ func applyGlobal(cfg *Config, data []byte, path string) error {
 	return nil
 }
 
-// applyWorkspaces layers the rules whose path covers the repository, shallowest
-// first, so a deeper directory refines a shallower one. Every rule is decoded
-// whether it matches or not: a typo in a rule that is dormant today is still a
-// typo, and unknown keys are an error at every layer.
-func applyWorkspaces(cfg *Config, path, repoRoot string) error {
-	if len(cfg.Workspaces) == 0 {
-		return nil
-	}
-	dir := filepath.Dir(path)
-
-	type match struct {
-		rule     Workspace
-		settings []byte
-		depth    int
-	}
-	var matches []match
-
-	for i, rule := range cfg.Workspaces {
-		settings, err := workspaceSettings(rule, path, i)
-		if err != nil {
-			return err
-		}
-		if err := decodeStrict(settings, &Config{}); err != nil {
-			return configErr("%s: workspaces[%d]: %v", path, i, err)
-		}
-		if rule.Path == "" {
-			return configErr("%s: workspaces[%d]: path is required", path, i)
-		}
-		if depth, ok := workspaceCovers(resolvePath(rule.Path, dir, cfg.env), repoRoot); ok {
-			matches = append(matches, match{rule: rule, settings: settings, depth: depth})
-		}
-	}
-
-	sort.SliceStable(matches, func(i, j int) bool { return matches[i].depth < matches[j].depth })
-	for _, m := range matches {
-		if err := decodeStrict(m.settings, cfg); err != nil {
-			return configErr("%s: workspaces %s: %v", path, m.rule.Path, err)
-		}
-		takePresetLayer(cfg, dir)
-		cfg.workspaceMatches = append(cfg.workspaceMatches, m.rule.Path)
-	}
-	return nil
-}
-
-func workspaceSettings(rule Workspace, path string, index int) ([]byte, error) {
-	var keys map[string]json.RawMessage
-	if err := json.Unmarshal(rule.raw, &keys); err != nil {
-		return nil, configErr("%s: workspaces[%d]: %v", path, index, err)
-	}
-	for key := range keys {
-		if strings.EqualFold(key, "workspaces") {
-			return nil, configErr("%s: workspaces[%d]: %q does not nest inside a workspace rule", path, index, key)
-		}
-		if strings.EqualFold(key, "path") {
-			delete(keys, key)
-		}
-	}
-	return json.Marshal(keys)
-}
-
-// workspaceCovers reports whether repoRoot lies under root, and how deep root
-// itself is. The comparison is per segment, so a rule for ~/Work/friday does
-// not catch ~/Work/friday-releases. Both sides are tried as written and with
-// their symlinks resolved, because a rule may name a directory that does not
-// exist yet while the repository path reaches the same place through a link.
-func workspaceCovers(root, repoRoot string) (int, bool) {
-	if root == "" || repoRoot == "" {
-		return 0, false
-	}
-	depth := len(pathSegments(root))
-	for _, r := range pathForms(root) {
-		for _, repo := range pathForms(repoRoot) {
-			if covers(r, repo) {
-				return depth, true
-			}
-		}
-	}
-	return 0, false
-}
-
-func covers(root, repoRoot string) bool {
-	rootSegs := pathSegments(root)
-	repoSegs := pathSegments(repoRoot)
-	if len(repoSegs) < len(rootSegs) {
-		return false
-	}
-	for i, seg := range rootSegs {
-		if !sameSegment(seg, repoSegs[i]) {
-			return false
-		}
-	}
-	return true
-}
-
-func pathForms(path string) []string {
-	clean := filepath.Clean(path)
-	if resolved, err := filepath.EvalSymlinks(clean); err == nil && resolved != clean {
-		return []string{clean, resolved}
-	}
-	return []string{clean}
-}
-
-func pathSegments(path string) []string {
-	segs := strings.Split(filepath.ToSlash(filepath.Clean(path)), "/")
-	if len(segs) > 1 && segs[len(segs)-1] == "" {
-		return segs[:len(segs)-1]
-	}
-	return segs
-}
-
-// caseInsensitivePaths follows the default filesystem: APFS is
-// case-insensitive, so a rule written ~/Work still covers ~/work.
-const caseInsensitivePaths = runtime.GOOS == "darwin"
-
-func sameSegment(a, b string) bool {
-	if caseInsensitivePaths {
-		return strings.EqualFold(a, b)
-	}
-	return a == b
-}
-
 // repoConfig is the whitelist for a repository-level file. `provider` and
 // `providers.*` are absent on purpose: a cloned repo could otherwise point
 // `providers.claude-cli.binary` at anything, or `baseUrl` at a key collector.
@@ -302,7 +179,7 @@ func applyRepo(cfg *Config, data []byte, path string) error {
 		return configErr("%s: %v\n"+
 			"a repository config may only set preset, presets, protectedBranches, confirm, "+
 			"preparedMessage, diff.maxBytes and diff.context; "+
-			"provider, provider settings and mcp are global-only", path, err)
+			"provider, provider settings, mcp and workspaces are global-only", path, err)
 	}
 
 	if repo.Preset != "" {
@@ -540,6 +417,24 @@ func resolvePath(path, base string, env func(string) (string, bool)) string {
 		return path
 	}
 	return filepath.Join(base, path)
+}
+
+// absPath expands `~` and makes a relative path absolute against the working
+// directory, so a repository root reaches the workspace matcher in the same
+// shape a rule does.
+func absPath(path string, env func(string) (string, bool)) string {
+	if path == "" {
+		return ""
+	}
+	expanded := expandHome(path, env)
+	if filepath.IsAbs(expanded) {
+		return filepath.Clean(expanded)
+	}
+	abs, err := filepath.Abs(expanded)
+	if err != nil {
+		return filepath.Clean(expanded)
+	}
+	return abs
 }
 
 func expandHome(path string, env func(string) (string, bool)) string {

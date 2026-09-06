@@ -166,10 +166,11 @@ A rule carries the whole global key set — `provider`, `providers.*`, `presets`
 `diff.*` and the rest — because this file is your own, unlike the repository one
 below. It matches on the root of the repository being committed, not on the
 working directory, so an MCP server started elsewhere still picks the right
-rule. Matching is per path segment, so `~/Work/friday` does not catch
-`~/Work/friday-releases`; on macOS it ignores case, as APFS does. Rules that
-overlap all apply, shallowest first, so a deeper directory refines a shallower
-one — and `autogit doctor` names the ones that matched.
+rule. `path` takes a `~`, and a relative one resolves against the directory of
+the config file itself. Matching is per path segment, so `~/Work/friday` does
+not catch `~/Work/friday-releases`; on macOS it ignores case, as APFS does.
+Rules that overlap all apply, shallowest first, so a deeper directory refines a
+shallower one — and `autogit doctor` names the ones that matched.
 
 ### API keys never live in the config file
 

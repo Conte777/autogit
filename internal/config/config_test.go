@@ -996,6 +996,56 @@ func TestRepoFileCannotSetWorkspaces(t *testing.T) {
 	}
 }
 
+func TestWorkspaceDepthComesFromTheMatchedForm(t *testing.T) {
+	dir := t.TempDir()
+	repoRoot := filepath.Join(dir, "tree", "narrow", "service")
+	if err := os.MkdirAll(repoRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "deep", "nest"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "deep", "nest", "link")
+	if err := os.Symlink(filepath.Join(dir, "tree"), link); err != nil {
+		t.Fatal(err)
+	}
+	path := workspaceConfig(t, dir, `[
+	  {"path":`+quote(link)+`,"preset":"ticket","attempts":5},
+	  {"path":`+quote(filepath.Join(dir, "tree", "narrow"))+`,"preset":"conventional"}
+	]`)
+
+	cfg, err := config.Load(config.Options{GlobalPath: path, RepoRoot: repoRoot, Env: envOf(nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Preset != "conventional" {
+		t.Errorf("Preset = %q: a shallow directory reached through a long symlink sorted as the deeper rule", cfg.Preset)
+	}
+	if cfg.Attempts != 5 {
+		t.Errorf("Attempts = %d, want the symlinked rule to still apply", cfg.Attempts)
+	}
+}
+
+func TestWorkspaceMatchesARepoRootWrittenWithATilde(t *testing.T) {
+	home := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(home, "work", "service"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := workspaceConfig(t, home, `[{"path":"~/work","preset":"ticket"}]`)
+
+	cfg, err := config.Load(config.Options{
+		GlobalPath: path,
+		RepoRoot:   "~/work/service",
+		Env:        envOf(map[string]string{"HOME": home}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Preset != "ticket" {
+		t.Errorf("Preset = %q, want the repository root to expand ~ too", cfg.Preset)
+	}
+}
+
 func quote(s string) string {
 	b, err := json.Marshal(s)
 	if err != nil {
