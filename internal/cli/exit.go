@@ -39,13 +39,14 @@ func ExitCode(err error) int {
 	}
 
 	var (
-		usage   *usageError
-		state   *git.StateError
-		execErr *git.ExecError
-		cfgErr  *config.Error
-		protErr *app.ProtectedBranchError
-		provErr *gen.ProviderError
-		failErr *gen.FailureError
+		usage      *usageError
+		state      *git.StateError
+		execErr    *git.ExecError
+		cfgErr     *config.Error
+		protErr    *app.ProtectedBranchError
+		consentErr *app.ConsentError
+		provErr    *gen.ProviderError
+		failErr    *gen.FailureError
 	)
 
 	switch {
@@ -59,7 +60,7 @@ func ExitCode(err error) int {
 		return ExitRepo
 	case app.IsNothingToCommit(err), errors.Is(err, app.ErrNoBranchInput):
 		return ExitNothing
-	case errors.As(err, &protErr):
+	case errors.As(err, &protErr), errors.As(err, &consentErr):
 		return ExitProtected
 	case errors.As(err, &provErr):
 		return ExitProvider

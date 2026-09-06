@@ -27,6 +27,7 @@ type Config struct {
 	Timeout           Duration                  `json:"timeout,omitempty" jsonschema:"budget for one generation, e.g. 90s"`
 	ProtectedBranches []string                  `json:"protectedBranches,omitempty" jsonschema:"branch name globs that require --force"`
 	Diff              Diff                      `json:"diff"`
+	MCP               MCP                       `json:"mcp"`
 	Providers         Providers                 `json:"providers"`
 	Presets           map[string]PresetOverride `json:"presets,omitempty" jsonschema:"per-preset overrides, merged over the built-in of the same name"`
 
@@ -47,6 +48,13 @@ type Diff struct {
 	Context          int      `json:"context,omitempty" jsonschema:"lines of context per hunk"`
 	IgnoreSubmodules bool     `json:"ignoreSubmodules"`
 	ExcludePathspecs []string `json:"excludePathspecs,omitempty" jsonschema:"git pathspecs kept out of the diff body; the file list stays complete"`
+}
+
+// MCP configures the MCP server. Global config only: a repository that could
+// set this would be handing an agent the right to commit on the very branches
+// the same file declares protected.
+type MCP struct {
+	AllowProtectedBranch bool `json:"allowProtectedBranch" jsonschema:"let the commit tool ask the user for consent on a protected branch instead of refusing"`
 }
 
 // Providers is the per-provider settings. API keys are deliberately absent:
@@ -127,6 +135,7 @@ func Default() Config {
 		Attempts:          3,
 		Timeout:           Duration(90 * time.Second),
 		ProtectedBranches: []string{"main", "master", "develop", "stage", "staging", "release/*"},
+		MCP:               MCP{AllowProtectedBranch: false},
 		Diff: Diff{
 			MaxBytes:         40000,
 			Context:          3,

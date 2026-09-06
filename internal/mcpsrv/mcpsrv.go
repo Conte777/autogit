@@ -4,6 +4,7 @@ package mcpsrv
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"runtime/debug"
 	"sync"
@@ -44,6 +45,8 @@ type Server struct {
 	// session. Two sessions are git's own `index.lock` to sort out.
 	mu    sync.Mutex
 	locks map[string]*repoLock
+
+	consentedBranch map[string]string
 }
 
 type repoLock struct {
@@ -53,7 +56,11 @@ type repoLock struct {
 
 // New builds a server.
 func New(build Builder) *Server {
-	return &Server{build: build, locks: map[string]*repoLock{}}
+	return &Server{
+		build:           build,
+		locks:           map[string]*repoLock{},
+		consentedBranch: map[string]string{},
+	}
 }
 
 // Register wires the tools onto an MCP server.
@@ -62,9 +69,10 @@ func (s *Server) Register(m *mcp.Server) {
 		Name: "commit",
 		Description: "Commit the staged changes with a message generated and validated " +
 			"server-side from the diff. You do not write or pass the message.\n\n" +
-			"Use ONLY when the user explicitly asks to commit. Committing on a " +
-			"protected branch is not possible through this tool at all — the user " +
-			"has to do it from the terminal with `autogit commit --force`.",
+			"Use ONLY when the user explicitly asks to commit. A protected branch " +
+			"cannot be authorised from here: the server either refuses outright or " +
+			"asks the user itself. Either answer is final — do not retry it and do " +
+			"not commit around autogit.",
 	}, s.commit)
 
 	mcp.AddTool(m, &mcp.Tool{
@@ -75,21 +83,100 @@ func (s *Server) Register(m *mcp.Server) {
 	}, s.branch)
 }
 
-func (s *Server) commit(ctx context.Context, _ *mcp.CallToolRequest, in CommitInput) (
+func (s *Server) commit(ctx context.Context, req *mcp.CallToolRequest, in CommitInput) (
 	*mcp.CallToolResult, any, error,
 ) {
 	return s.run(ctx, in.RepoPath, func(a *app.App) (string, error) {
 		// No allowProtectedBranch parameter exists on purpose: a model must not
-		// be able to talk itself into committing on main.
+		// be able to talk itself into committing on main. Where the configuration
+		// permits it at all, the permission comes from the user over elicitation,
+		// which the model neither sees nor can answer.
 		result, err := a.Commit(ctx, app.CommitRequest{
 			Stage:   app.ParseStageMode(in.StageMode),
 			Preview: in.DryRun,
+			Consent: s.consentFor(req, a.Root()),
 		})
 		if err != nil {
 			return "", err
 		}
+		if !result.Preview {
+			s.observeBranch(a.Root(), result.Branch)
+		}
 		return result.Summary(app.SummaryAgent), nil
 	})
+}
+
+// consentRequestID names the question in the InputRequests map, and the answer
+// in the InputResponses map of the call that follows it.
+const consentRequestID = "protected-branch"
+
+// needsConsent unwinds Commit so the call can return the question, not an error.
+type needsConsent struct {
+	branch string
+}
+
+func (e *needsConsent) Error() string {
+	return fmt.Sprintf("branch %q is protected and the user has not been asked yet", e.branch)
+}
+
+func (e *needsConsent) result() *mcp.CallToolResult {
+	return &mcp.CallToolResult{
+		InputRequests: mcp.InputRequestMap{
+			consentRequestID: &mcp.ElicitParams{
+				Message: fmt.Sprintf("Branch %q is protected. Commit anyway?", e.branch),
+			},
+		},
+	}
+}
+
+func (s *Server) consentFor(req *mcp.CallToolRequest, root string) func(context.Context, string) (bool, error) {
+	return func(_ context.Context, branch string) (bool, error) {
+		if granted, ok := s.consented(root); ok && granted == branch {
+			return true, nil
+		}
+		if answer, ok := req.Params.InputResponses[consentRequestID]; ok {
+			elicited, ok := answer.(*mcp.ElicitResult)
+			if !ok || elicited.Action != "accept" {
+				return false, nil
+			}
+			s.grantConsent(root, branch)
+			return true, nil
+		}
+		if !acceptsFormElicitation(req.ClientCapabilities()) {
+			return false, fmt.Errorf("branch %q is protected and this MCP client cannot ask "+
+				"the user for permission: the user has to run `/autogit:commit force` in Claude "+
+				"Code, or `autogit commit --force` in a terminal", branch)
+		}
+		return false, &needsConsent{branch: branch}
+	}
+}
+
+func acceptsFormElicitation(caps *mcp.ClientCapabilities) bool {
+	if caps == nil || caps.Elicitation == nil {
+		return false
+	}
+	return caps.Elicitation.Form != nil || caps.Elicitation.URL == nil
+}
+
+func (s *Server) consented(root string) (string, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	branch, ok := s.consentedBranch[root]
+	return branch, ok
+}
+
+func (s *Server) grantConsent(root, branch string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.consentedBranch[root] = branch
+}
+
+func (s *Server) observeBranch(root, branch string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.consentedBranch[root] != branch {
+		delete(s.consentedBranch, root)
+	}
 }
 
 func (s *Server) branch(ctx context.Context, _ *mcp.CallToolRequest, in BranchInput) (
@@ -132,6 +219,10 @@ func (s *Server) run(ctx context.Context, repoPath string, fn func(*app.App) (st
 
 	text, err := fn(a)
 	if err != nil {
+		var needs *needsConsent
+		if errors.As(err, &needs) {
+			return needs.result(), nil, nil
+		}
 		return errorResult(gen.Explain(err)), nil, nil
 	}
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: text}}}, nil, nil

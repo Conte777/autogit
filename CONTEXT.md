@@ -130,8 +130,16 @@ _Avoid_: add mode, staging strategy
 
 **Protected branch**:
 A branch matching a configured glob, where committing requires an explicit
-override.
+override. The override is always a human: `--force` where one is typing, and
+Consent where one can be reached.
 _Avoid_: main branch, locked branch
+
+**Consent**:
+The user's permission for one operation, arriving over a channel the model
+neither sees nor can forge. It is the second form of the protected-branch
+override, and it names the branch it was given for — a consent for `main` is not
+a consent for `release/1.2`, and it expires as soon as work commits elsewhere.
+_Avoid_: approval, permission flag, confirmation
 
 **Global config**:
 The user's own config file. The only place that may choose a provider.
@@ -151,9 +159,12 @@ Code hook. It picks the **prompter**, and nothing else about it is carried into
 _Avoid_: entry point, frontend, interface
 
 **Prompter**:
-Who answers a question. A terminal on the CLI, and `ui.Noop` on mcp, on the
-hook and under `--no-input`. It is the single answer to "is there anybody to
-ask", and git is told the same thing, so the two cannot disagree.
+Who answers a question at a terminal. A terminal on the CLI, and `ui.Noop` on
+mcp, on the hook and under `--no-input`. It is the single answer to "is there a
+terminal", and git is told the same thing, so the two cannot disagree.
+
+It is not the answer to "is the user reachable": mcp has no terminal and yet
+reaches the user through Consent, which is why the two are separate.
 _Avoid_: interactive flag, no-input flag, tty
 
 **Operation**:

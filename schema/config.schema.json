@@ -73,6 +73,16 @@
       },
       "additionalProperties": false
     },
+    "mcp": {
+      "type": "object",
+      "properties": {
+        "allowProtectedBranch": {
+          "type": "boolean",
+          "description": "let the commit tool ask the user for consent on a protected branch instead of refusing"
+        }
+      },
+      "additionalProperties": false
+    },
     "providers": {
       "type": "object",
       "properties": {

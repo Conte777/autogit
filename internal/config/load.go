@@ -176,7 +176,7 @@ func applyRepo(cfg *Config, data []byte, path string) error {
 		return configErr("%s: %v\n"+
 			"a repository config may only set preset, presets, protectedBranches, confirm, "+
 			"preparedMessage, diff.maxBytes and diff.context; "+
-			"provider and provider settings are global-only", path, err)
+			"provider, provider settings and mcp are global-only", path, err)
 	}
 
 	if repo.Preset != "" {
