@@ -58,6 +58,8 @@ type Options struct {
 	// the askpass helpers. Off wherever autogit itself has nobody to ask, so
 	// that git cannot stop for a question autogit promised would not come.
 	// Credential storage helpers answer without asking and stay enabled.
+	// It also keeps git in autogit's process group, where a helper can still
+	// read the terminal for a passphrase instead of being stopped by SIGTTIN.
 	Interactive bool
 	// CommitTimeout bounds `git commit`. A signing setup that waits on
 	// pinentry would otherwise hang the caller forever. 0 uses the default.
@@ -121,8 +123,10 @@ func (r *Repo) runBounded(ctx context.Context, timeout time.Duration, limit int,
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "git", args...)
-	proc.Isolate(cmd)
-	cmd.Cancel = func() error { return proc.Kill(cmd) }
+	if !r.opts.Interactive {
+		proc.Isolate(cmd)
+		cmd.Cancel = func() error { return proc.Kill(cmd) }
+	}
 	cmd.Dir = r.root
 	cmd.Env = r.env()
 	if stdin != "" {

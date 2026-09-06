@@ -124,7 +124,7 @@ type session struct {
 	cmd    *exec.Cmd
 	stdin  io.WriteCloser
 	events chan event
-	// gone releases the stdout reader once nobody is draining events any more.
+	// gone is closed once nobody will read events again.
 	gone     chan struct{}
 	goneOnce sync.Once
 

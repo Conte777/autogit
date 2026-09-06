@@ -23,6 +23,10 @@ func Kill(cmd *exec.Cmd) error {
 	if cmd.Process == nil {
 		return os.ErrProcessDone
 	}
+	// A reaped pid can already belong to somebody else's group.
+	if err := cmd.Process.Signal(syscall.Signal(0)); err != nil {
+		return err
+	}
 	if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL); err != nil {
 		return cmd.Process.Kill()
 	}

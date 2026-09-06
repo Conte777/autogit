@@ -10,8 +10,7 @@ import (
 // Isolate is a no-op where process groups are not a thing.
 func Isolate(*exec.Cmd) {}
 
-// Kill terminates the child. It reports os.ErrProcessDone when there is
-// nothing left to signal, which is what exec.Cmd.Cancel expects.
+// Kill terminates the child alone: there is no group to take with it.
 func Kill(cmd *exec.Cmd) error {
 	if cmd.Process == nil {
 		return os.ErrProcessDone
