@@ -106,9 +106,9 @@ Set `"preparedMessage": false` to generate a message in these states instead.
 
 ## Configure
 
-Two layers, deep-merged, the repository file on top of the global one. Per key:
-CLI flags → `AUTOGIT_*` → `<repo>/.autogit.json` → `$AUTOGIT_CONFIG` or
-`~/.config/autogit/config.json` → built-in defaults.
+Deep-merged layers, the repository file on top of the global one. Per key:
+CLI flags → `AUTOGIT_*` → `<repo>/.autogit.json` → `workspaces` → `$AUTOGIT_CONFIG`
+or `~/.config/autogit/config.json` → built-in defaults.
 
 `~/.config/autogit/config.json`:
 
@@ -147,6 +147,30 @@ CLI flags → `AUTOGIT_*` → `<repo>/.autogit.json` → `$AUTOGIT_CONFIG` or
 
 Run `autogit schema` to print the schema the config validates against.
 
+### Settings scoped to a directory
+
+Trees differ: one holds work that follows Conventional Commits, another only
+takes `CUS-1234: subject`. `workspaces` scopes any global key to a directory,
+and applies to every repository under it:
+
+```json
+{
+  "preset": "conventional",
+  "workspaces": [
+    { "path": "~/Work/friday-releases", "preset": "ticket" }
+  ]
+}
+```
+
+A rule carries the whole global key set — `provider`, `providers.*`, `presets`,
+`diff.*` and the rest — because this file is your own, unlike the repository one
+below. It matches on the root of the repository being committed, not on the
+working directory, so an MCP server started elsewhere still picks the right
+rule. Matching is per path segment, so `~/Work/friday` does not catch
+`~/Work/friday-releases`; on macOS it ignores case, as APFS does. Rules that
+overlap all apply, shallowest first, so a deeper directory refines a shallower
+one — and `autogit doctor` names the ones that matched.
+
 ### API keys never live in the config file
 
 They come from the environment only: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
@@ -168,8 +192,9 @@ global-only because a repository able to set it would be handing an agent the
 right to commit to the very branches the same file declares protected.
 `diff.maxBytes` is accepted only
 downwards, so a repo cannot turn the diff read into an out-of-memory one.
-Unknown keys are errors everywhere — a typo in `protectedBranches` must not
-silently switch branch protection off.
+`workspaces` is global-only for the sum of those reasons: it is the one key
+that carries all of them. Unknown keys are errors everywhere — a typo in
+`protectedBranches` must not silently switch branch protection off.
 
 ### Environment
 
