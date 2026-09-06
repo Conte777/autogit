@@ -57,9 +57,7 @@ func Root(v Version) *cobra.Command {
 	f.StringVar(&g.confPath, "config", "", "path to the global config file")
 	f.BoolVar(&g.noInput, "no-input", false, "never ask questions; fail with a hint instead")
 
-	root.RunE = func(cmd *cobra.Command, _ []string) error { return cmd.Help() }
-	root.Args = unknownCommandIsUsage
-	root.SuggestionsMinimumDistance = 2
+	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error { return &usageError{err} })
 
 	root.AddCommand(
 		commitCmd(g, out),
@@ -71,7 +69,43 @@ func Root(v Version) *cobra.Command {
 		hookCmd(g),
 		mcpCmd(g),
 	)
+	// Cobra grows `help` and `completion` on its way into Execute, which is
+	// after the walk below; `completion` is a parent command of exactly the
+	// shape the walk exists to fix.
+	root.InitDefaultHelpCmd()
+	root.InitDefaultCompletionCmd()
+
+	classifyUsageErrors(root)
 	return root
+}
+
+// classifyUsageErrors makes every node of the tree answer a bad invocation with
+// exit 2. Cobra's own answer is a plain error — a bug in autogit, by the exit
+// codes — and under a command it cannot run, no error at all: RunE is what
+// carries a mistyped subcommand as far as Args.
+func classifyUsageErrors(cmd *cobra.Command) {
+	if cmd.HasSubCommands() {
+		// SuggestionsFor reads the distance raw; only cobra's own path fills
+		// the zero value in.
+		cmd.SuggestionsMinimumDistance = 2
+		if !cmd.Runnable() {
+			cmd.RunE = func(c *cobra.Command, _ []string) error { return c.Help() }
+		}
+	}
+	switch args := cmd.Args; {
+	case args != nil:
+		cmd.Args = func(c *cobra.Command, a []string) error {
+			if err := args(c, a); err != nil {
+				return &usageError{err}
+			}
+			return nil
+		}
+	case cmd.HasSubCommands():
+		cmd.Args = unknownCommandIsUsage
+	}
+	for _, sub := range cmd.Commands() {
+		classifyUsageErrors(sub)
+	}
 }
 
 // Execute runs the tree and returns the process exit code.
