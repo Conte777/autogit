@@ -287,6 +287,12 @@ install it first, or the plugin says so at the start of the session.
 Permissions are not part of the plugin: a plugin cannot grant them, and the
 first approval of a tool is yours to give.
 
+The version in `plugins/autogit/.claude-plugin/plugin.json` is the plugin's own
+and is deliberately not tied to the binary's: the plugin changes when a command,
+a hook or the MCP wiring changes, the binary changes on every release. Marketplace
+and binary are installed and updated separately — `/plugin` and `brew upgrade` —
+so a shared number would only promise a lockstep nothing enforces.
+
 #### Migrating from `autogit install claude-code`
 
 `autogit install claude-code` and `autogit uninstall claude-code` are gone —
