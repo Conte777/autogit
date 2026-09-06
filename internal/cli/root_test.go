@@ -57,6 +57,8 @@ func TestBadInvocationIsAUsageError(t *testing.T) {
 		// handed over.
 		{"an unknown word after cobra's own parent command", []string{"completion", "bogus"}},
 		{"a surplus argument under cobra's own command", []string{"completion", "bash", "extra"}},
+		{"an unknown help topic", []string{"help", "bogus"}},
+		{"an unknown word below a valid help topic", []string{"help", "preset", "lst"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			err := runRoot(t, tc.args...)
@@ -76,11 +78,21 @@ func TestBadInvocationIsAUsageError(t *testing.T) {
 	}{
 		{"the command that was meant", []string{"commt"}, "commit"},
 		{"the subcommand that was meant", []string{"preset", "lst"}, "list"},
+		{"the help topic that was meant", []string{"help", "commt"}, "commit"},
+		{"the help topic that was meant below a topic", []string{"help", "preset", "lst"}, "list"},
 	} {
 		t.Run("suggests "+tc.name, func(t *testing.T) {
 			err := runRoot(t, tc.args...)
 			if err == nil || !strings.Contains(err.Error(), "Did you mean this?\n\t"+tc.meant) {
 				t.Errorf("no suggestion for a near miss: %v", err)
+			}
+		})
+	}
+
+	for _, args := range [][]string{{"help"}, {"help", "preset"}, {"help", "preset", "eject"}} {
+		t.Run("a help topic still prints: "+strings.Join(args, " "), func(t *testing.T) {
+			if err := runRoot(t, args...); err != nil {
+				t.Errorf("autogit %s failed: %v", strings.Join(args, " "), err)
 			}
 		})
 	}

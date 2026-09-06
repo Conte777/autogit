@@ -74,6 +74,9 @@ func Root(v Version) *cobra.Command {
 	// shape the walk exists to fix.
 	root.InitDefaultHelpCmd()
 	root.InitDefaultCompletionCmd()
+	if help := defaultHelpCmd(root); help != nil {
+		help.Args = unknownHelpTopic
+	}
 
 	classifyUsageErrors(root)
 	return root
@@ -181,6 +184,21 @@ func applyFlags(cfg *config.Config, g *globals) {
 }
 
 func unknownCommandIsUsage(cmd *cobra.Command, args []string) error {
+	if err := unknownCommand(cmd, args); err != nil {
+		return &usageError{err}
+	}
+	return nil
+}
+
+func unknownHelpTopic(cmd *cobra.Command, args []string) error {
+	target, rest, err := cmd.Root().Find(args)
+	if err != nil {
+		return err
+	}
+	return unknownCommand(target, rest)
+}
+
+func unknownCommand(cmd *cobra.Command, args []string) error {
 	if len(args) == 0 {
 		return nil
 	}
@@ -188,5 +206,14 @@ func unknownCommandIsUsage(cmd *cobra.Command, args []string) error {
 	if suggestions := cmd.SuggestionsFor(args[0]); len(suggestions) > 0 {
 		msg += "\n\nDid you mean this?\n\t" + strings.Join(suggestions, "\n\t")
 	}
-	return &usageError{errors.New(msg)}
+	return errors.New(msg)
+}
+
+func defaultHelpCmd(root *cobra.Command) *cobra.Command {
+	for _, sub := range root.Commands() {
+		if sub.Name() == "help" {
+			return sub
+		}
+	}
+	return nil
 }
