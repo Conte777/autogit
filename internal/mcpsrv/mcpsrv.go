@@ -14,7 +14,10 @@ import (
 	"github.com/Conte777/autogit/internal/gen"
 )
 
-// CommitInput is the `commit` tool's argument object.
+// CommitInput is the `commit` tool's argument object. Neither tool restricts
+// which working tree the path may name: an agent holding a shell reaches every
+// repository on disk regardless, so a permitted-directory list would cost
+// configuration and buy no protection.
 type CommitInput struct {
 	RepoPath  string `json:"repoPath" jsonschema:"absolute path to the repository, or any directory inside it"`
 	StageMode string `json:"stageMode,omitempty" jsonschema:"staged (default), all (git add -A first) or tracked (git add -u first)"`
@@ -36,15 +39,21 @@ type Builder func(ctx context.Context, repoPath string) (*app.App, error)
 type Server struct {
 	build Builder
 
-	// Handlers run concurrently, and two commits into one repository would
-	// fight over the index, so calls are serialised per repository.
+	// Two commits into one working tree would fight over the index, so calls are
+	// serialised per tree, within this process — which is one Claude Code
+	// session. Two sessions are git's own `index.lock` to sort out.
 	mu    sync.Mutex
-	locks map[string]*sync.Mutex
+	locks map[string]*repoLock
+}
+
+type repoLock struct {
+	mu   sync.Mutex
+	refs int
 }
 
 // New builds a server.
 func New(build Builder) *Server {
-	return &Server{build: build, locks: map[string]*sync.Mutex{}}
+	return &Server{build: build, locks: map[string]*repoLock{}}
 }
 
 // Register wires the tools onto an MCP server.
@@ -111,13 +120,16 @@ func (s *Server) run(ctx context.Context, repoPath string, fn func(*app.App) (st
 		return errorResult("repoPath is required"), nil, nil
 	}
 
-	unlock := s.lock(repoPath)
-	defer unlock()
-
+	// The caller names the tree in whatever spelling it likes, so the lock can
+	// only be taken once the build has resolved that spelling to a root.
 	a, err := s.build(ctx, repoPath)
 	if err != nil {
 		return errorResult(err.Error()), nil, nil
 	}
+
+	unlock := s.lock(a.Root())
+	defer unlock()
+
 	text, err := fn(a)
 	if err != nil {
 		return errorResult(gen.Explain(err)), nil, nil
@@ -125,17 +137,27 @@ func (s *Server) run(ctx context.Context, repoPath string, fn func(*app.App) (st
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: text}}}, nil, nil
 }
 
-func (s *Server) lock(repoPath string) func() {
+func (s *Server) lock(root string) func() {
 	s.mu.Lock()
-	m, ok := s.locks[repoPath]
+	l, ok := s.locks[root]
 	if !ok {
-		m = &sync.Mutex{}
-		s.locks[repoPath] = m
+		l = &repoLock{}
+		s.locks[root] = l
 	}
+	l.refs++
 	s.mu.Unlock()
 
-	m.Lock()
-	return m.Unlock
+	l.mu.Lock()
+	return func() {
+		l.mu.Unlock()
+
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		l.refs--
+		if l.refs == 0 {
+			delete(s.locks, root)
+		}
+	}
 }
 
 func errorResult(text string) *mcp.CallToolResult {

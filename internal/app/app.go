@@ -35,6 +35,8 @@ func New(repo *git.Repo, cfg *config.Config, prov gen.Provider, prompter ui.Prom
 	return &App{repo: repo, cfg: cfg, preset: p, provider: prov, prompt: prompter}, nil
 }
 
+func (a *App) Root() string { return a.repo.Root() }
+
 // ErrNothingToCommit means the index is empty and nothing was asked to fill it.
 var ErrNothingToCommit = errors.New("nothing staged")
 
