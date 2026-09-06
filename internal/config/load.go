@@ -41,10 +41,7 @@ func Load(opts Options) (*Config, error) {
 	cfg := Default()
 	cfg.env = opts.Env
 
-	globalPath := opts.GlobalPath
-	if globalPath == "" {
-		globalPath = globalConfigPath(opts.Env)
-	}
+	globalPath := globalPathFor(opts)
 	if data, ok, err := readIfExists(globalPath); err != nil {
 		return nil, err
 	} else if ok {
@@ -53,8 +50,7 @@ func Load(opts Options) (*Config, error) {
 		}
 	}
 
-	if opts.RepoRoot != "" {
-		repoPath := filepath.Join(opts.RepoRoot, FileName)
+	if repoPath := repoPathFor(opts); repoPath != "" {
 		if data, ok, err := readIfExists(repoPath); err != nil {
 			return nil, err
 		} else if ok {
@@ -68,6 +64,54 @@ func Load(opts Options) (*Config, error) {
 		return nil, err
 	}
 	return &cfg, nil
+}
+
+// FileCheck is the verdict on one config file. Err is nil when the file
+// matches the schema of the layer that will decode it.
+type FileCheck struct {
+	Path string
+	Err  error
+}
+
+// CheckFiles validates every config file Load would read, in the order it
+// reads them. A file that is absent, or that cannot be read at all, is left
+// out: Load reports that one itself, with its own error.
+func CheckFiles(opts Options) []FileCheck {
+	if opts.Env == nil {
+		opts.Env = os.LookupEnv
+	}
+	var checks []FileCheck
+	for _, layer := range []struct {
+		path     string
+		validate func([]byte) error
+	}{
+		{globalPathFor(opts), ValidateDocument},
+		{repoPathFor(opts), validateRepoDocument},
+	} {
+		if layer.path == "" {
+			continue
+		}
+		data, ok, err := readIfExists(layer.path)
+		if err != nil || !ok {
+			continue
+		}
+		checks = append(checks, FileCheck{Path: layer.path, Err: layer.validate(data)})
+	}
+	return checks
+}
+
+func globalPathFor(opts Options) string {
+	if opts.GlobalPath != "" {
+		return opts.GlobalPath
+	}
+	return globalConfigPath(opts.Env)
+}
+
+func repoPathFor(opts Options) string {
+	if opts.RepoRoot == "" {
+		return ""
+	}
+	return filepath.Join(opts.RepoRoot, FileName)
 }
 
 func readIfExists(path string) ([]byte, bool, error) {

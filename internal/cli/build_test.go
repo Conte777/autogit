@@ -229,3 +229,47 @@ func TestDoctorReportsABrokenPreset(t *testing.T) {
 		}
 	}
 }
+
+// A config the schema rejects can still load and still resolve — `timeout:
+// "-5m"` parses — so the report has to carry the failure into the exit code.
+func TestDoctorFailsOnAConfigThatFailsTheSchema(t *testing.T) {
+	dir := initRepo(t)
+	writeFile(t, dir, ".autogit.json", `{"preset":5}`)
+
+	var stdout, stderr bytes.Buffer
+	out := ui.New(&stdout, &stderr, strings.NewReader(""), false)
+	g := &globals{repo: dir, confPath: filepath.Join(dir, "absent.json"), env: envOf(nil)}
+
+	err := runDoctor(context.Background(), g, out)
+	if err == nil {
+		t.Fatal("doctor passed a config the schema rejects")
+	}
+	if got := ExitCode(err); got != ExitConfig {
+		t.Errorf("ExitCode(%v) = %d, want %d", err, got, ExitConfig)
+	}
+	report := stdout.String() + stderr.String()
+	for _, want := range []string{"schema       BROKEN", ".autogit.json"} {
+		if !strings.Contains(report, want) {
+			t.Errorf("report is missing %q:\n%s", want, report)
+		}
+	}
+}
+
+// A config file is partial — it is merged over the defaults — so the fields a
+// user leaves out must not be reported as missing. The unknown preset stops
+// the report before it asks a provider anything.
+func TestDoctorAcceptsAPartialConfig(t *testing.T) {
+	dir := initRepo(t)
+	writeFile(t, dir, ".autogit.json", `{"preset":"nope","confirm":true}`)
+
+	var stdout, stderr bytes.Buffer
+	out := ui.New(&stdout, &stderr, strings.NewReader(""), false)
+	g := &globals{repo: dir, confPath: filepath.Join(dir, "absent.json"), env: envOf(nil)}
+
+	if err := runDoctor(context.Background(), g, out); err == nil {
+		t.Fatal("doctor passed a preset that does not exist")
+	}
+	if report := stdout.String() + stderr.String(); !strings.Contains(report, "schema       ok") {
+		t.Errorf("a config that validates was not reported as such:\n%s", report)
+	}
+}

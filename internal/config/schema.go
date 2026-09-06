@@ -13,35 +13,12 @@ import (
 // Schema returns the JSON schema of Config, pretty-printed and newline
 // terminated so it can be diffed against the committed copy.
 func Schema() ([]byte, error) {
-	presetSchema, err := jsonschema.For[preset.Preset](nil)
-	if err != nil {
-		return nil, err
-	}
-	s, err := jsonschema.For[Config](&jsonschema.ForOptions{
-		TypeSchemas: map[reflect.Type]*jsonschema.Schema{
-			reflect.TypeFor[Duration](): {
-				Type:        "string",
-				Description: "Go duration string, e.g. 90s, 2m or 1m30s",
-				Pattern:     `^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$`,
-			},
-			// PresetOverride is raw JSON at runtime; the schema shows the shape
-			// a user actually writes.
-			reflect.TypeFor[PresetOverride](): presetSchema,
-		},
-	})
+	s, err := documentSchema[Config]()
 	if err != nil {
 		return nil, err
 	}
 	s.Schema = "https://json-schema.org/draft/2020-12/schema"
 	s.Title = "autogit configuration"
-
-	// The list of providers comes from the table, not a struct tag: a name
-	// spelled in two places is the drift this schema exists to catch.
-	if p, ok := s.Properties["provider"]; ok {
-		for _, name := range ProviderNames() {
-			p.Enum = append(p.Enum, name)
-		}
-	}
 
 	out, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {
@@ -50,17 +27,81 @@ func Schema() ([]byte, error) {
 	return append(out, '\n'), nil
 }
 
+// documentSchema builds the schema of a config document. T is Config for the
+// global file and repoConfig for the repository one, which is why the provider
+// enum is applied only where a `provider` property exists.
+func documentSchema[T any]() (*jsonschema.Schema, error) {
+	presetSchema, err := jsonschema.For[preset.Preset](nil)
+	if err != nil {
+		return nil, err
+	}
+	repoDiffSchema, err := jsonschema.For[repoDiff](nil)
+	if err != nil {
+		return nil, err
+	}
+	s, err := jsonschema.For[T](&jsonschema.ForOptions{
+		TypeSchemas: map[reflect.Type]*jsonschema.Schema{
+			reflect.TypeFor[Duration](): {
+				Type:        "string",
+				Description: "Go duration string, e.g. 90s, 2m or 1m30s",
+				Pattern:     `^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$`,
+			},
+			// PresetOverride is raw JSON at runtime; the schema shows the shape
+			// a user actually writes. The only raw section left is the
+			// repository file's diff, which carries its own narrower whitelist.
+			reflect.TypeFor[PresetOverride]():  presetSchema,
+			reflect.TypeFor[json.RawMessage](): repoDiffSchema,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// The list of providers comes from the table, not a struct tag: a name
+	// spelled in two places is the drift this schema exists to catch.
+	if p, ok := s.Properties["provider"]; ok {
+		for _, name := range ProviderNames() {
+			p.Enum = append(p.Enum, name)
+		}
+	}
+	clearRequired(s)
+	return s, nil
+}
+
+// clearRequired walks the schema dropping every "required" list. A config file
+// is a partial document merged over the defaults, so the fields the generator
+// takes for required — the ones whose Go tag carries no omitempty — are
+// optional in anything a user actually writes.
+func clearRequired(s *jsonschema.Schema) {
+	if s == nil {
+		return
+	}
+	s.Required = nil
+	for _, sub := range s.Properties {
+		clearRequired(sub)
+	}
+	for _, sub := range s.Defs {
+		clearRequired(sub)
+	}
+	clearRequired(s.Items)
+	clearRequired(s.AdditionalProperties)
+}
+
 // ValidateDocument checks raw config bytes against the generated schema. It
 // exists so a wrong type reports the offending path instead of a decoder
-// message about an interface conversion.
-func ValidateDocument(data []byte) error {
-	raw, err := Schema()
+// message about an interface conversion, and so a name outside an enum — which
+// decodes cleanly and only fails much later — is reported at all.
+func ValidateDocument(data []byte) error { return validateAgainst[Config](data) }
+
+// validateRepoDocument checks a repository file against the whitelist that
+// will decode it, not against Config: `provider` and `providers.*` are
+// global-only, and a report that accepted them here would contradict Load.
+func validateRepoDocument(data []byte) error { return validateAgainst[repoConfig](data) }
+
+func validateAgainst[T any](data []byte) error {
+	s, err := documentSchema[T]()
 	if err != nil {
 		return err
-	}
-	var s jsonschema.Schema
-	if unmarshalErr := json.Unmarshal(raw, &s); unmarshalErr != nil {
-		return unmarshalErr
 	}
 	resolved, err := s.Resolve(nil)
 	if err != nil {
