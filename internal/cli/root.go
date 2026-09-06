@@ -76,6 +76,7 @@ func Root(v Version) *cobra.Command {
 	root.InitDefaultCompletionCmd()
 
 	classifyUsageErrors(root)
+	classifyHelpTopics(root)
 	return root
 }
 
@@ -189,4 +190,23 @@ func unknownCommandIsUsage(cmd *cobra.Command, args []string) error {
 		msg += "\n\nDid you mean this?\n\t" + strings.Join(suggestions, "\n\t")
 	}
 	return &usageError{errors.New(msg)}
+}
+
+func classifyHelpTopics(root *cobra.Command) {
+	for _, sub := range root.Commands() {
+		if sub.Name() == "help" {
+			sub.Args = unknownHelpTopicIsUsage
+		}
+	}
+}
+
+func unknownHelpTopicIsUsage(cmd *cobra.Command, args []string) error {
+	target, rest, err := cmd.Root().Find(args)
+	if err != nil {
+		return &usageError{err}
+	}
+	if !target.HasSubCommands() {
+		return nil
+	}
+	return unknownCommandIsUsage(target, rest)
 }
