@@ -118,9 +118,8 @@ func TestPrintGoesToStdout(t *testing.T) {
 	}
 }
 
-func TestProgressGoesToStderrNotStdout(t *testing.T) {
+func TestStaticProgressGoesToStderrNotStdout(t *testing.T) {
 	u, out, errw := newUI("")
-	u.Start("Generating commit message…")()
 	u.StaticProgress().Start("Generating branch name…")()
 
 	if out.String() != "" {

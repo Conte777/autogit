@@ -120,12 +120,12 @@ func (a *App) Commit(ctx context.Context, req CommitRequest) (CommitResult, erro
 	if op != git.OpNone {
 		out.Message = prepared
 	}
-	generated, attempts, msgErr := a.messageFor(ctx, op, branch)
+	generated, msgErr := a.messageFor(ctx, op, branch)
 	if msgErr != nil {
 		return CommitResult{}, msgErr
 	}
 	if op == git.OpNone {
-		out.Message, out.Attempts = generated, attempts
+		out.Message, out.Attempts = generated.Value, generated.Attempts
 	}
 	if req.Preview {
 		return out, nil
@@ -148,29 +148,25 @@ func (a *App) Commit(ctx context.Context, req CommitRequest) (CommitResult, erro
 // message to reuse, generates one. It is its own method so that the progress
 // report is put down by a defer here rather than in Commit, where it would
 // still be spinning under confirmCommit's question.
-func (a *App) messageFor(ctx context.Context, op git.Operation, branch git.Branch) (string, int, error) {
+func (a *App) messageFor(ctx context.Context, op git.Operation, branch git.Branch) (gen.Result, error) {
 	if op == git.OpMerge {
-		return "", 0, nil
+		return gen.Result{}, nil
 	}
 	diff, err := a.repo.StagedDiff(ctx, a.diffOptions())
 	if err != nil {
-		return "", 0, err
+		return gen.Result{}, err
 	}
 	if diff.Empty() {
-		return "", 0, ErrNothingToCommit
+		return gen.Result{}, ErrNothingToCommit
 	}
 	// The passthrough path never reaches the model, so the phrase would lie.
 	if op != git.OpNone {
-		return "", 0, nil
+		return gen.Result{}, nil
 	}
-	stop := a.progress.Start("Generating commit message…")
+	stop := a.progress.Start(commitProgressLabel)
 	defer stop()
 
-	result, err := a.generateMessage(ctx, branch, diff)
-	if err != nil {
-		return "", 0, err
-	}
-	return result.Value, result.Attempts, nil
+	return a.generateMessage(ctx, branch, diff)
 }
 
 // preparedMessage returns the message git already wrote for this state, or the

@@ -159,10 +159,10 @@ _Avoid_: project config, local config
 
 **Surface**:
 The way a request reaches generation — the CLI, the MCP server, or the Claude
-Code hook. What it carries into `app` is the two ways of reaching the user: the
-**prompter**, and, where it has one, a channel for **Consent**. Nothing else
-about it crosses. Whether a channel may be used is `app`'s to decide, not the
-surface's. `doctor` is a command, not a surface.
+Code hook. What it carries into `app` is the ways of reaching the user: the
+**prompter**, a **Progress** report, and, where it has one, a channel for
+**Consent**. Nothing else about it crosses. Whether a channel may be used is
+`app`'s to decide, not the surface's. `doctor` is a command, not a surface.
 _Avoid_: entry point, frontend, interface
 
 **Prompter**:
@@ -178,8 +178,12 @@ _Avoid_: interactive flag, no-input flag, tty
 What tells the terminal that an operation is running, so a wait cannot be
 mistaken for a hang. It says nothing about how the generation is going — only
 that it has not stopped. Separate from the Prompter: `--no-input` removes the
-questions and keeps the report, and a run with no terminal still says one line.
-_Avoid_: spinner, status, progress bar, throbber
+questions and keeps the report, and a CLI run with no terminal still says one
+line. It is silent on mcp and on the hook, where nobody is watching a screen.
+
+A spinner is one of its two renderings, the other being that single line; the
+report is not the spinner.
+_Avoid_: status, progress bar, throbber
 
 **Operation**:
 Commit or Branch. There are two.

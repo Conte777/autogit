@@ -87,6 +87,22 @@ func (w watcher) Confirm(string, bool) (bool, error) {
 func (w watcher) Choose(string, []ui.Option) (string, error) { return "", ui.ErrNoInput }
 func (watcher) Interactive() bool                            { return true }
 
+// A branch run with nothing to describe never reaches the model, so a static
+// line claiming otherwise would be the only thing the run ever said.
+func TestBranchWithNothingToDescribeReportsNothing(t *testing.T) {
+	e := newEnv(t)
+	rec := &reports{}
+	e.progress = rec
+	e.commitFile("a.txt", "one\n", "init")
+
+	if _, err := e.app().Branch(context.Background(), app.BranchRequest{}); err == nil {
+		t.Fatal("a clean worktree produced a branch name")
+	}
+	if got := rec.labels(); len(got) != 0 {
+		t.Errorf("labels = %v, want none", got)
+	}
+}
+
 func TestBranchReportsOnBothGeneratingPaths(t *testing.T) {
 	tests := []struct {
 		name string

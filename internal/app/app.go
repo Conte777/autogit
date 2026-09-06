@@ -50,6 +50,12 @@ func New(
 	}, nil
 }
 
+// The two things a Progress report can be about; there are two Operations.
+const (
+	commitProgressLabel = "Generating commit message…"
+	branchProgressLabel = "Generating branch name…"
+)
+
 func (a *App) Root() string { return a.repo.Root() }
 
 // ErrNothingToCommit means the index is empty and nothing was asked to fill it.

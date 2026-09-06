@@ -177,3 +177,26 @@ func TestDumbTerminalIsTheDefaultlessOne(t *testing.T) {
 		t.Error("xterm-256color was taken for a dumb terminal")
 	}
 }
+
+// The animated path is the half a stopped-at-once report never exercises: it
+// draws nothing below the threshold, so only a run that waits past it can say
+// where the frames went.
+func TestTheAnimationGoesToStderrNotStdout(t *testing.T) {
+	var out strings.Builder
+	errw := &buffer{}
+	u := New(&out, errw, strings.NewReader(""), true)
+
+	stop := u.Start("Generating commit message…")
+	defer stop()
+
+	deadline := time.Now().Add(5 * time.Second)
+	for errw.String() == "" {
+		if time.Now().After(deadline) {
+			t.Fatal("the spinner never drew a frame")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if out.String() != "" {
+		t.Errorf("stdout got %q; a frame there corrupts `autogit commit-msg > file`", out.String())
+	}
+}
