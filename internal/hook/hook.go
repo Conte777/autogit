@@ -12,6 +12,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/Conte777/autogit/internal/gen"
 )
 
 // Budget is autogit's own deadline. Claude Code kills the hook at 120s and a
@@ -94,7 +96,7 @@ func Run(ctx context.Context, in io.Reader, out io.Writer, env func(string) (str
 
 	message, err := run(ctx, cmd)
 	if err != nil {
-		message = fmt.Sprintf("autogit %s failed: %v", cmd.Kind, err)
+		message = fmt.Sprintf("autogit %s failed: %s", cmd.Kind, gen.Explain(err))
 	}
 	return block(out, message)
 }

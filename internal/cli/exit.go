@@ -73,12 +73,3 @@ func ExitCode(err error) int {
 		return ExitInternal
 	}
 }
-
-// Detail returns the extra lines worth showing for an error, or "".
-func Detail(err error) string {
-	var failErr *gen.FailureError
-	if errors.As(err, &failErr) && failErr.Last != "" {
-		return "last candidate: " + failErr.Last
-	}
-	return ""
-}

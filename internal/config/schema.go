@@ -35,7 +35,7 @@ func documentSchema[T any]() (*jsonschema.Schema, error) {
 	if err != nil {
 		return nil, err
 	}
-	diffSchema, err := jsonschema.For[Diff](nil)
+	repoDiffSchema, err := jsonschema.For[repoDiff](nil)
 	if err != nil {
 		return nil, err
 	}
@@ -47,9 +47,10 @@ func documentSchema[T any]() (*jsonschema.Schema, error) {
 				Pattern:     `^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$`,
 			},
 			// PresetOverride is raw JSON at runtime; the schema shows the shape
-			// a user actually writes. So is the repository file's diff section.
+			// a user actually writes. The only raw section left is the
+			// repository file's diff, which carries its own narrower whitelist.
 			reflect.TypeFor[PresetOverride]():  presetSchema,
-			reflect.TypeFor[json.RawMessage](): diffSchema,
+			reflect.TypeFor[json.RawMessage](): repoDiffSchema,
 		},
 	})
 	if err != nil {

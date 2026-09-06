@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/Conte777/autogit/internal/app"
 	"github.com/Conte777/autogit/internal/config"
+	"github.com/Conte777/autogit/internal/gen"
 	"github.com/Conte777/autogit/internal/provider"
 	"github.com/Conte777/autogit/internal/ui"
 )
@@ -118,12 +120,15 @@ func Execute(ctx context.Context, v Version) int {
 	if err == nil {
 		return ExitOK
 	}
-	code := ExitCode(err)
-	fmt.Fprintf(os.Stderr, "autogit: %v\n", err)
-	if detail := Detail(err); detail != "" {
-		fmt.Fprintf(os.Stderr, "         %s\n", detail)
+	report(os.Stderr, err)
+	return ExitCode(err)
+}
+
+func report(w io.Writer, err error) {
+	_, _ = fmt.Fprintf(w, "autogit: %v\n", err)
+	if candidate := gen.LastCandidate(err); candidate != "" {
+		_, _ = fmt.Fprintf(w, "         %s\n", candidate)
 	}
-	return code
 }
 
 // build assembles everything an operation needs from flags, config and the

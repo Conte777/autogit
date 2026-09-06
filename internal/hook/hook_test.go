@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
+	"github.com/Conte777/autogit/internal/gen"
 	"github.com/Conte777/autogit/internal/hook"
 )
 
@@ -245,5 +246,35 @@ func TestRunAppliesItsOwnBudget(t *testing.T) {
 		})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestRunShowsTheLastRejectedCandidate(t *testing.T) {
+	var out strings.Builder
+	err := hook.Run(context.Background(),
+		strings.NewReader(`{"prompt":"/commit"}`), &out, envOf(nil),
+		func(context.Context, hook.Command) (string, error) {
+			return "", &gen.FailureError{
+				Provider: "mock",
+				Attempts: 3,
+				Last:     "Feat: Add Thing",
+				Problems: []string{"subject must be lowercase"},
+			}
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decision struct {
+		Reason        string `json:"reason"`
+		SystemMessage string `json:"systemMessage"`
+	}
+	if err := json.Unmarshal([]byte(out.String()), &decision); err != nil {
+		t.Fatalf("output is not the decision JSON: %v\n%s", err, out.String())
+	}
+	if !strings.Contains(decision.Reason, "Feat: Add Thing") {
+		t.Errorf("reason = %q, want the rejected candidate", decision.Reason)
+	}
+	if strings.Contains(decision.SystemMessage, "\n") {
+		t.Errorf("systemMessage = %q, want a single line", decision.SystemMessage)
 	}
 }

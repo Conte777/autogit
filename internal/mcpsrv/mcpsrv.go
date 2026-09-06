@@ -11,6 +11,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Conte777/autogit/internal/app"
+	"github.com/Conte777/autogit/internal/gen"
 )
 
 // CommitInput is the `commit` tool's argument object.
@@ -119,7 +120,7 @@ func (s *Server) run(ctx context.Context, repoPath string, fn func(*app.App) (st
 	}
 	text, err := fn(a)
 	if err != nil {
-		return errorResult(err.Error()), nil, nil
+		return errorResult(gen.Explain(err)), nil, nil
 	}
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: text}}}, nil, nil
 }
