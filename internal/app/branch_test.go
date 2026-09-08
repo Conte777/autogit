@@ -14,8 +14,8 @@ func currentBranch(t *testing.T, e *env) string {
 	return strings.TrimSpace(e.git("branch", "--show-current"))
 }
 
-func TestBranchFromDescriptionAndTicketSkipsTheModel(t *testing.T) {
-	e := newEnv(t)
+func TestBranchFromDescriptionAndTicketAsksTheModelForTheSlug(t *testing.T) {
+	e := newEnv(t, "add-user-auth")
 	e.cfg.Preset = "ticket"
 	e.commitFile("a.txt", "one\n", "init")
 
@@ -26,27 +26,77 @@ func TestBranchFromDescriptionAndTicketSkipsTheModel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Name != "CUS-1234/add-user-auth-now" {
-		t.Errorf("Name = %q", got.Name)
+	if got.Name != "CUS-1234/add-user-auth" {
+		t.Errorf("Name = %q; the slug must come from the model, not from the description", got.Name)
 	}
-	if e.prov.Sessions != 0 {
-		t.Error("the model was asked although both halves of the name were known")
+	if e.prov.Sessions != 1 {
+		t.Errorf("sessions = %d; the description is a task for the model, not a ready slug", e.prov.Sessions)
+	}
+	if strings.Contains(systemPromptOf(t, e.prov), "<type> <slug>") {
+		t.Error("the model was asked for a type although the ticket already supplies the prefix")
 	}
 	if currentBranch(t, e) != got.Name {
 		t.Errorf("checked out %q, want %q", currentBranch(t, e), got.Name)
 	}
 }
 
-func TestBranchFromDescriptionAsksOnlyForTheType(t *testing.T) {
-	e := newEnv(t, "fix broken-thing")
+func TestBranchFromDescriptionAsksForTypeAndSlug(t *testing.T) {
+	e := newEnv(t, "fix login-redirect-loop")
 	e.commitFile("a.txt", "one\n", "init")
 
 	got, err := e.app().Branch(context.Background(), app.BranchRequest{Description: "fix the login redirect"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Name != "fix/fix-the-login-redirect" {
-		t.Errorf("Name = %q; the slug must come from the description, the type from the model", got.Name)
+	if got.Name != "fix/login-redirect-loop" {
+		t.Errorf("Name = %q; both halves of the name come from the model", got.Name)
+	}
+}
+
+func TestBranchKeepsALongSlugWhole(t *testing.T) {
+	e := newEnv(t, "fix flaky-retry-logic-in-the-provider")
+	e.commitFile("a.txt", "one\n", "init")
+
+	got, err := e.app().Branch(context.Background(), app.BranchRequest{
+		Description: "fix the flaky retry logic in provider",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != "fix/flaky-retry-logic-in-the-provider" {
+		t.Errorf("Name = %q; a slug longer than four words must survive whole", got.Name)
+	}
+}
+
+func TestBranchFromANonLatinDescription(t *testing.T) {
+	e := newEnv(t, "fix crash-on-retry")
+	e.commitFile("a.txt", "one\n", "init")
+
+	got, err := e.app().Branch(context.Background(), app.BranchRequest{
+		Description: "исправить падение при ретрае",
+	})
+	if err != nil {
+		t.Fatalf("a description outside [a-z0-9] broke branch: %v", err)
+	}
+	if got.Name != "fix/crash-on-retry" {
+		t.Errorf("Name = %q; the model transliterates, the description is never slugged directly", got.Name)
+	}
+}
+
+func TestBranchJoinsASpacedSlugFromTheModel(t *testing.T) {
+	e := newEnv(t, "add retry logic")
+	e.cfg.Preset = "ticket"
+	e.commitFile("a.txt", "one\n", "init")
+
+	got, err := e.app().Branch(context.Background(), app.BranchRequest{
+		Ticket:      "CUS-1",
+		Description: "add retry logic",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != "CUS-1/add-retry-logic" {
+		t.Errorf("Name = %q; a spaced answer is joined, not cut down to its last word", got.Name)
 	}
 }
 
@@ -109,7 +159,7 @@ func TestBranchNoDescriptionNoChanges(t *testing.T) {
 }
 
 func TestBranchNameCollision(t *testing.T) {
-	e := newEnv(t)
+	e := newEnv(t, "add-user-auth")
 	e.cfg.Preset = "ticket"
 	e.commitFile("a.txt", "one\n", "init")
 	e.git("branch", "CUS-1/add-user-auth")
@@ -124,7 +174,7 @@ func TestBranchNameCollision(t *testing.T) {
 }
 
 func TestBranchRejectsAMalformedTicket(t *testing.T) {
-	e := newEnv(t)
+	e := newEnv(t, "add-user-auth")
 	e.cfg.Preset = "ticket"
 	e.commitFile("a.txt", "one\n", "init")
 
@@ -160,7 +210,7 @@ func TestBranchCorrectsAnInvalidSlug(t *testing.T) {
 }
 
 func TestBranchCustomNameTemplate(t *testing.T) {
-	e := newEnv(t)
+	e := newEnv(t, "add-user-auth")
 	e.commitFile("a.txt", "one\n", "init")
 
 	e.repoConfig(`{"presets": {"conventional": {"branch": {"name": "{{.Ticket}}-{{.Slug}}"}}}}`)

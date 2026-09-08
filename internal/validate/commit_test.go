@@ -237,19 +237,3 @@ func TestSlugRules(t *testing.T) {
 		}
 	}
 }
-
-func TestSlugify(t *testing.T) {
-	tests := []struct{ in, want string }{
-		{"Add User Auth, now!", "add-user-auth-now"},
-		{"one two three four five", "one-two-three-four"},
-		{"Привет мир", ""},
-		{"!!! ???", ""},
-		{"already-kebab", "already-kebab"},
-		{"CUS-1234 fix the thing", "cus-1234-fix-the"},
-	}
-	for _, tt := range tests {
-		if got := Slugify(tt.in, 4); got != tt.want {
-			t.Errorf("Slugify(%q) = %q, want %q", tt.in, got, tt.want)
-		}
-	}
-}

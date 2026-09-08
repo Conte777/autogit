@@ -102,8 +102,7 @@ type BranchFormat struct {
 	Prompt        string   `json:"prompt,omitempty"`
 	Types         []string `json:"types,omitempty"`
 	TicketPattern string   `json:"ticketPattern,omitempty"`
-	MaxWords      int      `json:"maxWords,omitempty"`
-	MaxSlugLen    int      `json:"maxSlugLen,omitempty"`
+	MaxSlugLen    int      `json:"maxSlugLen,omitempty" jsonschema:"branch slug length limit in characters"`
 	Name          string   `json:"name,omitempty" jsonschema:"branch name template over .Prefix, .Type, .Ticket and .Slug"`
 }
 
@@ -129,7 +128,6 @@ var builtin = map[string]Preset{
 		Branch: BranchFormat{
 			Types:         []string{"feat", "fix"},
 			TicketPattern: `[A-Z][A-Z0-9]+-[0-9]+`,
-			MaxWords:      4,
 			MaxSlugLen:    40,
 			Name:          "{{.Prefix}}/{{.Slug}}",
 		},
@@ -148,7 +146,6 @@ var builtin = map[string]Preset{
 		Branch: BranchFormat{
 			Types:         []string{"feat", "fix"},
 			TicketPattern: `CUS-[0-9]+`,
-			MaxWords:      4,
 			MaxSlugLen:    40,
 			Name:          "{{.Prefix}}/{{.Slug}}",
 		},

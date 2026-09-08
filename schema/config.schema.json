@@ -277,11 +277,9 @@
               "ticketPattern": {
                 "type": "string"
               },
-              "maxWords": {
-                "type": "integer"
-              },
               "maxSlugLen": {
-                "type": "integer"
+                "type": "integer",
+                "description": "branch slug length limit in characters"
               },
               "name": {
                 "type": "string",
@@ -578,11 +576,9 @@
                     "ticketPattern": {
                       "type": "string"
                     },
-                    "maxWords": {
-                      "type": "integer"
-                    },
                     "maxSlugLen": {
-                      "type": "integer"
+                      "type": "integer",
+                      "description": "branch slug length limit in characters"
                     },
                     "name": {
                       "type": "string",

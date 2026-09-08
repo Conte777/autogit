@@ -73,27 +73,16 @@ func (a *App) Branch(ctx context.Context, req BranchRequest) (BranchResult, erro
 	}
 
 	desc := strings.TrimSpace(req.Description)
-	prefix, typ, slug := ticket, "", ""
-	attempts := 0
+	prefix, typ := ticket, ""
 
-	switch {
-	case desc != "" && ticket != "":
-		slug = validate.Slugify(desc, format.MaxWords)
-
-	case desc != "":
-		answer, err := a.askBranch(ctx, prompt.BranchData{
-			Description: desc,
-			Types:       format.Types,
-			MaxWords:    format.MaxWords,
-			NeedType:    true,
-		})
-		if err != nil {
-			return BranchResult{}, err
-		}
-		attempts, typ, prefix = answer.Attempts, answer.Type, answer.Type
-		slug = validate.Slugify(desc, format.MaxWords)
-
-	default:
+	data := prompt.BranchData{
+		Ticket:      ticket,
+		Description: desc,
+		Types:       format.Types,
+		MaxSlugLen:  format.MaxSlugLen,
+		NeedType:    ticket == "",
+	}
+	if desc == "" {
 		diff, err := a.repo.WorktreeDiff(ctx, a.diffOptions())
 		if err != nil {
 			return BranchResult{}, err
@@ -101,26 +90,17 @@ func (a *App) Branch(ctx context.Context, req BranchRequest) (BranchResult, erro
 		if diff.Empty() {
 			return BranchResult{}, ErrNoBranchInput
 		}
-		answer, err := a.askBranch(ctx, prompt.BranchData{
-			Files:         diff.Files,
-			Diff:          diff.Text,
-			DiffTruncated: diff.Truncated,
-			Types:         format.Types,
-			MaxWords:      format.MaxWords,
-			NeedType:      ticket == "",
-		})
-		if err != nil {
-			return BranchResult{}, err
-		}
-		attempts, slug = answer.Attempts, answer.Slug
-		if ticket == "" {
-			typ, prefix = answer.Type, answer.Type
-		}
+		data.Files, data.Diff, data.DiffTruncated = diff.Files, diff.Text, diff.Truncated
+	}
+	answer, err := a.askBranch(ctx, data)
+	if err != nil {
+		return BranchResult{}, err
+	}
+	attempts, slug := answer.Attempts, answer.Slug
+	if ticket == "" {
+		typ, prefix = answer.Type, answer.Type
 	}
 
-	if slug == "" {
-		return BranchResult{}, ErrNoBranchInput
-	}
 	if prefix == "" && len(format.Types) > 0 {
 		typ, prefix = format.Types[0], format.Types[0]
 	}
@@ -185,7 +165,7 @@ func (v branchValidator) Check(raw string) (string, []string) {
 	}
 
 	if !v.needType {
-		value, problems := v.slug.Check(fields[len(fields)-1])
+		value, problems := v.slug.Check(strings.Join(fields, "-"))
 		return value, problems
 	}
 
