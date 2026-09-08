@@ -223,18 +223,3 @@ func (r SlugRules) Check(raw string) (string, []string) {
 	}
 	return s, problems
 }
-
-var nonSlug = regexp.MustCompile(`[^a-z0-9]+`)
-
-// Slugify turns free text into a kebab-case slug of at most maxWords words.
-func Slugify(text string, maxWords int) string {
-	s := strings.Trim(nonSlug.ReplaceAllString(strings.ToLower(text), "-"), "-")
-	if s == "" {
-		return ""
-	}
-	words := strings.Split(s, "-")
-	if maxWords > 0 && len(words) > maxWords {
-		words = words[:maxWords]
-	}
-	return strings.Join(words, "-")
-}

@@ -103,26 +103,22 @@ func TestBranchWithNothingToDescribeReportsNothing(t *testing.T) {
 	}
 }
 
-func TestBranchReportsOnBothGeneratingPaths(t *testing.T) {
+func TestBranchReportsOnEveryPath(t *testing.T) {
 	tests := []struct {
 		name string
 		req  app.BranchRequest
-		want []string
 	}{
 		{
 			name: "from the diff",
 			req:  app.BranchRequest{},
-			want: []string{branchLabel},
 		},
 		{
 			name: "from a description",
 			req:  app.BranchRequest{Description: "fix the login redirect"},
-			want: []string{branchLabel},
 		},
 		{
 			name: "from a description and a ticket",
 			req:  app.BranchRequest{Ticket: "CUS-1234", Description: "fix the login redirect"},
-			want: nil,
 		},
 	}
 
@@ -139,13 +135,14 @@ func TestBranchReportsOnBothGeneratingPaths(t *testing.T) {
 			if _, err := e.app().Branch(context.Background(), tt.req); err != nil {
 				t.Fatal(err)
 			}
+			want := []string{branchLabel}
 			got := rec.labels()
-			if len(got) != len(tt.want) {
-				t.Fatalf("labels = %v, want %v", got, tt.want)
+			if len(got) != len(want) {
+				t.Fatalf("labels = %v, want %v", got, want)
 			}
 			for i := range got {
-				if got[i] != tt.want[i] {
-					t.Errorf("labels[%d] = %q, want %q", i, got[i], tt.want[i])
+				if got[i] != want[i] {
+					t.Errorf("labels[%d] = %q, want %q", i, got[i], want[i])
 				}
 			}
 			if rec.live() != 0 {

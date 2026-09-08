@@ -10,13 +10,14 @@ Reply with exactly one line:
     <type> <slug>
 
 - `<type>` is one of: {{range $i, $t := .Types}}{{if $i}}, {{end}}{{$t}}{{end}}.
-- `<slug>` is a {{.MaxWords}}-word-or-fewer kebab-case summary of the change:
-  lowercase letters, digits and hyphens only.
+- `<slug>` is a kebab-case summary of the change, at most {{.MaxSlugLen}}
+  characters: lowercase letters, digits and hyphens only.
 
 Example: feat add-user-auth
 {{- else -}}
-Reply with exactly one kebab-case branch slug: at most {{.MaxWords}} words,
-lowercase letters, digits and hyphens only. No prefix, no type, no path.
+Reply with exactly one kebab-case branch slug: at most {{.MaxSlugLen}}
+characters, lowercase letters, digits and hyphens only. No prefix, no type, no
+path.
 
 Example: add-user-auth
 {{- end}}
