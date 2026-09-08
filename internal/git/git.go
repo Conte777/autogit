@@ -51,9 +51,9 @@ type ExecError struct {
 }
 
 func (e *ExecError) Error() string {
-	detail := e.Stderr
+	detail := diagnostic(e.Stderr)
 	if detail == "" {
-		detail = e.Stdout
+		detail = diagnostic(e.Stdout)
 	}
 	if detail != "" {
 		return fmt.Sprintf("git %s: %s", strings.Join(e.Args, " "), detail)
@@ -160,22 +160,28 @@ func (r *Repo) runBounded(ctx context.Context, timeout time.Duration, limit int,
 		return stdout.String(), false, &ExecError{
 			Args:   args,
 			Stderr: strings.TrimSpace(stderr.String()),
-			Stdout: diagnostic(stdout.String()),
+			Stdout: strings.TrimSpace(stdout.String()),
 			Err:    err,
 		}
 	}
 	return stdout.String(), false, nil
 }
 
-// diagnostic trims stdout down to something an error message can carry: the
-// commands that fail with an explanation there print a line or two, while the
-// ones that stream a payload would otherwise paste a whole diff into it.
-func diagnostic(out string) string {
-	out = strings.TrimSpace(out)
-	if len(out) <= maxDiagnostic {
-		return out
+// diagnostic renders one of git's streams as a single bounded line: a failing
+// hook's build log and a half-streamed diff both end up here, and the message
+// travels to a terminal and to the MCP client as one string.
+func diagnostic(stream string) string {
+	var lines []string
+	for ln := range strings.SplitSeq(stream, "\n") {
+		if ln = strings.TrimSpace(ln); ln != "" {
+			lines = append(lines, ln)
+		}
 	}
-	return strings.ToValidUTF8(out[:maxDiagnostic], "") + "…"
+	out := strings.ToValidUTF8(strings.Join(lines, "; "), "")
+	if len(out) > maxDiagnostic {
+		out = strings.ToValidUTF8(out[:maxDiagnostic], "") + "…"
+	}
+	return out
 }
 
 type capped struct {
@@ -342,17 +348,11 @@ type Result struct {
 
 // Commit writes msg through stdin and reports what git actually recorded.
 func (r *Repo) Commit(ctx context.Context, msg string) (Result, error) {
-	// The index is re-read here because generating the message took time a
-	// second autogit run could have used to commit everything itself. Without
-	// it that loss reaches the user as git's bare exit status.
-	if err := r.requireSomethingToCommit(ctx); err != nil {
-		return Result{}, err
-	}
 	// -F - because `-m` is not what git's own editor path does, and
 	// --cleanup=whitespace because the default strips body lines starting
 	// with '#'.
 	if _, err := r.run(ctx, r.commitTimeout(), msg, "commit", "--cleanup=whitespace", "-F", "-"); err != nil {
-		return Result{}, err
+		return Result{}, r.explainCommitFailure(ctx, err)
 	}
 	// A commit-msg hook may have rewritten the message; report what landed.
 	out, err := r.run(ctx, defaultTimeout, "", "log", "-1", "--format=%H%x00%h%x00%B")
@@ -370,22 +370,27 @@ func (r *Repo) Commit(ctx context.Context, msg string) (Result, error) {
 	}, nil
 }
 
-// requireSomethingToCommit reports the empty index as the state it is, except
-// under a merge: `git merge -s ours` records a tree equal to HEAD's, and that
-// commit is the only way out of the merge.
-func (r *Repo) requireSomethingToCommit(ctx context.Context) error {
-	staged, err := r.HasStaged(ctx)
-	if err != nil || staged {
+// explainCommitFailure names the emptied index as the state it is: a second
+// autogit run commits everything while this one generates a message. Merges
+// are exempt — `git merge -s ours` records an index equal to HEAD's, so an
+// empty one there means the commit failed over something else.
+func (r *Repo) explainCommitFailure(ctx context.Context, err error) error {
+	staged, stagedErr := r.HasStaged(ctx)
+	if stagedErr != nil || staged || r.merging(ctx) {
 		return err
 	}
-	st, err := r.State(ctx)
+	return fmt.Errorf("%w: the index was empty by the time git ran", ErrNothingToCommit)
+}
+
+// merging stats MERGE_HEAD instead of reading State, whose index.lock
+// short-circuit reports a locked merge as no merge at all.
+func (r *Repo) merging(ctx context.Context) bool {
+	dir, err := r.gitDir(ctx)
 	if err != nil {
-		return err
+		return false
 	}
-	if st.Op == OpMerge {
-		return nil
-	}
-	return ErrNothingToCommit
+	_, err = os.Stat(filepath.Join(dir, "MERGE_HEAD"))
+	return err == nil
 }
 
 // BranchExists reports whether a local branch of that name is already there.

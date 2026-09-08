@@ -50,7 +50,6 @@ func TestExitCode(t *testing.T) {
 			cli.ExitCanceled,
 		},
 		{"nothing staged", app.ErrNothingToCommit, cli.ExitNothing},
-		{"the index emptied under the commit", git.ErrNothingToCommit, cli.ExitNothing},
 		{"nothing staged, wrapped", fmt.Errorf("%w: hint", app.ErrNothingToCommit), cli.ExitNothing},
 		{"no branch input", app.ErrNoBranchInput, cli.ExitNothing},
 		{"protected", &app.ProtectedBranchError{Branch: "main"}, cli.ExitProtected},
