@@ -326,18 +326,18 @@ autogit mcp
 
 Runs the MCP server on stdio for an agent that has no plugin to carry it.
 It exposes `commit` and `branch`. The tool generates and validates the message
-itself; the agent never writes or passes one. There is no
-`allowProtectedBranch` parameter, so a model cannot talk itself into committing
-on `main`.
+itself; the agent never writes or passes one. The tools carry no
+`allowProtectedBranch` parameter: whether a protected branch may be committed to
+is your configuration's answer, not an argument of the call.
 
 By default a protected branch is refused outright, and only a human lifts it —
 `autogit commit --force` in a terminal, or `/autogit:commit force` in Claude
-Code. Set `mcp.allowProtectedBranch` in your global config and the server asks
-you instead: it sends the question through the MCP client, you answer it, and
-the answer travels back over a channel the model never sees. The consent covers
-the branch it was given for and expires as soon as a commit lands somewhere
-else. A client that does not support elicitation gets the refusal and the two
-human paths.
+Code. Set `mcp.allowProtectedBranch` in your global config and the tool commits
+instead, on the agent's word that it asked you first: its description instructs
+the agent to put the question to you and wait for the answer before calling it
+at all. That is an instruction, not a mechanism — the key is off by default for
+exactly that reason, and it is global-only, so no cloned repository can turn it
+on.
 
 ## Two ways to reach Claude
 

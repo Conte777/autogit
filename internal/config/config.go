@@ -56,7 +56,7 @@ type Diff struct {
 // set this would be handing an agent the right to commit on the very branches
 // the same file declares protected.
 type MCP struct {
-	AllowProtectedBranch bool `json:"allowProtectedBranch" jsonschema:"let the commit tool ask the user for consent on a protected branch instead of refusing"`
+	AllowProtectedBranch bool `json:"allowProtectedBranch" jsonschema:"let the commit tool commit to a protected branch after the agent has asked the user, instead of refusing"`
 }
 
 // Providers is the per-provider settings. API keys are deliberately absent:

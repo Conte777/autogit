@@ -54,9 +54,10 @@ type CommitRequest struct {
 	Stage StageMode
 	// Force permits a protected branch. Only a human can set it.
 	Force bool
-	// Consent asks the user to permit a protected branch over a channel the
-	// model never sees. Nil on a surface that has no such channel.
-	Consent ConsentFunc
+	// Agent says the caller is an agent that was told, by the tool's own
+	// description, to ask the user before committing to a protected branch.
+	// Set by the MCP surface, never by the model.
+	Agent bool
 	// Preview generates the message and stops — this is `commit-msg`, which is
 	// the same code path so that the preview cannot differ from the commit.
 	Preview bool
@@ -106,7 +107,7 @@ func (a *App) Commit(ctx context.Context, req CommitRequest) (CommitResult, erro
 		if conflictErr := a.requireResolved(ctx); conflictErr != nil {
 			return CommitResult{}, conflictErr
 		}
-		if protErr := a.checkProtected(ctx, branch, req); protErr != nil {
+		if protErr := a.checkProtected(branch, req); protErr != nil {
 			return CommitResult{}, protErr
 		}
 	}
@@ -198,7 +199,7 @@ func (a *App) requireResolved(ctx context.Context) error {
 		"resolve the conflicts first, then stage them: %s", strings.Join(unmerged, ", "))}
 }
 
-func (a *App) checkProtected(ctx context.Context, branch git.Branch, req CommitRequest) error {
+func (a *App) checkProtected(branch git.Branch, req CommitRequest) error {
 	if branch.Detached || req.Force || !validate.IsProtected(branch.Name, a.cfg.ProtectedBranches) {
 		return nil
 	}
@@ -213,7 +214,7 @@ func (a *App) checkProtected(ctx context.Context, branch git.Branch, req CommitR
 		}
 		return nil
 	}
-	if req.Consent == nil {
+	if !req.Agent {
 		return &ProtectedBranchError{
 			Branch: branch.Name,
 			Hint:   "re-run with --force if that is what you meant",
@@ -225,13 +226,6 @@ func (a *App) checkProtected(ctx context.Context, branch git.Branch, req CommitR
 			Hint: "the user has to allow it: `/autogit:commit force` in Claude Code, " +
 				"or `autogit commit --force` in a terminal",
 		}
-	}
-	ok, err := req.Consent(ctx, branch.Name)
-	if err != nil {
-		return err
-	}
-	if !ok {
-		return &ConsentError{Branch: branch.Name}
 	}
 	return nil
 }
