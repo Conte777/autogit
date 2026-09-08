@@ -35,6 +35,10 @@ type Provider struct {
 	Model  string
 	// ExtraArgs is appended verbatim, for flags autogit does not model.
 	ExtraArgs []string
+	// Thinking lets the child deliberate before it answers. Off by default,
+	// and off is the only setting autogit can hold the child to: the amount a
+	// thinking model spends is the CLI's business, not a number to pass it.
+	Thinking bool
 }
 
 func (p *Provider) Name() string { return "claude-cli" }
@@ -68,7 +72,7 @@ func (p *Provider) args(system string) []string {
 // Start launches the process and begins draining its pipes.
 func (p *Provider) Start(ctx context.Context, system string) (gen.Session, error) {
 	cmd := exec.Command(p.binary(), p.args(system)...) //nolint:noctx // ctx drives Send/Close, not the process lifetime
-	cmd.Env = childEnv()
+	cmd.Env = p.childEnv()
 	proc.Isolate(cmd)
 
 	stdin, err := cmd.StdinPipe()
@@ -100,10 +104,17 @@ func (p *Provider) Start(ctx context.Context, system string) (gen.Session, error
 }
 
 // childEnv guards against the child re-entering autogit through the user's own
-// UserPromptSubmit hook.
-func childEnv() []string {
-	env := os.Environ()
-	env = append(env, "AUTOGIT_ACTIVE=1", "CLAUDE_CODE_ENTRYPOINT=autogit")
+// UserPromptSubmit hook, and switches thinking off rather than inheriting a
+// budget the environment happens to carry. That budget was chosen for
+// somebody's interactive session, and here it is spent on a single-shot
+// rewrite of a diff that is already in the context. Thinking on is the
+// environment's own affair again, deliberately: how long a model deliberates
+// is not something autogit can dictate from out here.
+func (p *Provider) childEnv() []string {
+	env := append(os.Environ(), "AUTOGIT_ACTIVE=1", "CLAUDE_CODE_ENTRYPOINT=autogit")
+	if !p.Thinking {
+		env = append(env, "MAX_THINKING_TOKENS=0")
+	}
 	return env
 }
 
