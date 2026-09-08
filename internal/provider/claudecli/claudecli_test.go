@@ -220,3 +220,41 @@ func TestName(t *testing.T) {
 		t.Errorf("Name() = %q", got)
 	}
 }
+
+// The budget arrives through the environment, which is exactly where a value
+// somebody else chose is already sitting — so autogit's own answer has to win,
+// and where the answer is "let it think", the environment is what decides.
+func TestChildThinksOnlyWhenConfigured(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		provider Provider
+		want     string
+	}{
+		{name: "off by default", want: "0"},
+		{name: "on", provider: Provider{Thinking: true}, want: "31999"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("MAX_THINKING_TOKENS", "31999")
+
+			bin, _ := fakeClaude(t, `printenv MAX_THINKING_TOKENS > "$(dirname "$0")/env"`+"\nread -r line\n")
+			envLog := filepath.Join(filepath.Dir(bin), "env")
+
+			p := tc.provider
+			p.Binary = bin
+			s, err := p.Start(context.Background(), "sys")
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Close waits for the process, so the log is complete after it.
+			_ = s.Close()
+
+			got, err := os.ReadFile(envLog)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if budget := strings.TrimSpace(string(got)); budget != tc.want {
+				t.Errorf("child ran on MAX_THINKING_TOKENS=%q, want %q", budget, tc.want)
+			}
+		})
+	}
+}
