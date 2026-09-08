@@ -30,6 +30,6 @@ type BranchData struct {
 	Diff          string
 	DiffTruncated bool
 	Types         []string
-	MaxWords      int
+	MaxSlugLen    int
 	NeedType      bool // no ticket, so the model has to pick a type as well
 }

@@ -138,7 +138,7 @@ or `~/.config/autogit/config.json` → built-in defaults.
   },
   "providers": {
     "anthropic":  { "model": "claude-haiku-4-5", "baseUrl": "https://api.anthropic.com/v1", "maxTokens": 1024 },
-    "claude-cli": { "binary": "claude", "model": "haiku" },
+    "claude-cli": { "binary": "claude", "model": "haiku", "thinking": false },
     "openai":     { "model": "gpt-4.1-mini", "baseUrl": "https://api.openai.com/v1", "maxTokens": 1024 },
     "gemini":     { "model": "gemini-2.5-flash", "baseUrl": "https://generativelanguage.googleapis.com/v1beta", "maxTokens": 1024 }
   }
@@ -346,6 +346,15 @@ in, over `stream-json` on a long-lived process. This is the only legitimate
 route to a Claude subscription: Anthropic
 [does not permit](https://code.claude.com/docs/en/legal-and-compliance)
 third-party tools to hold Free, Pro or Max credentials.
+
+The child runs with thinking off. Whatever budget the environment carries was
+chosen for an interactive session, and here it buys nothing but latency on a
+diff the model already has in full — measured on one 33 KB diff, the same
+generation took anywhere from 6 to 70 seconds with thinking on, and blew the
+`timeout` outright. Set `providers.claude-cli.thinking` to `true` if you want
+the model to deliberate anyway, and raise `timeout` with it. The setting is a
+request to the `claude` binary, not a guarantee: a model or a gateway that
+cannot switch thinking off will think regardless.
 
 `anthropic` goes straight to the Messages API with your own key. It is the
 escape hatch, and it is tested rather than theoretical — `claude -p` has drifted

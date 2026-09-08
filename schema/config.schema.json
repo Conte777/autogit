@@ -119,6 +119,10 @@
               "items": {
                 "type": "string"
               }
+            },
+            "thinking": {
+              "type": "boolean",
+              "description": "let the model think before it answers; off keeps one turn short and predictable"
             }
           },
           "additionalProperties": false
@@ -273,11 +277,9 @@
               "ticketPattern": {
                 "type": "string"
               },
-              "maxWords": {
-                "type": "integer"
-              },
               "maxSlugLen": {
-                "type": "integer"
+                "type": "integer",
+                "description": "branch slug length limit in characters"
               },
               "name": {
                 "type": "string",
@@ -416,6 +418,10 @@
                     "items": {
                       "type": "string"
                     }
+                  },
+                  "thinking": {
+                    "type": "boolean",
+                    "description": "let the model think before it answers; off keeps one turn short and predictable"
                   }
                 },
                 "additionalProperties": false
@@ -570,11 +576,9 @@
                     "ticketPattern": {
                       "type": "string"
                     },
-                    "maxWords": {
-                      "type": "integer"
-                    },
                     "maxSlugLen": {
-                      "type": "integer"
+                      "type": "integer",
+                      "description": "branch slug length limit in characters"
                     },
                     "name": {
                       "type": "string",

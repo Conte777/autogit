@@ -83,10 +83,10 @@ func commitCases(p preset.Preset) []prompt.CommitData {
 
 func branchCases(p preset.Preset) []prompt.BranchData {
 	base := prompt.BranchData{
-		Files:    []string{"a.go"},
-		Diff:     "diff",
-		Types:    p.Branch.Types,
-		MaxWords: p.Branch.MaxWords,
+		Files:      []string{"a.go"},
+		Diff:       "diff",
+		Types:      p.Branch.Types,
+		MaxSlugLen: p.Branch.MaxSlugLen,
 	}
 	var out []prompt.BranchData
 	for _, desc := range []string{"", "add user auth"} {

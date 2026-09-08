@@ -15,10 +15,11 @@ func branchCmd(g *globals, out *ui.UI) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "branch [TICKET] [description...]",
 		Short: "Create and switch to a new branch named <prefix>/<slug>",
-		Long: "With a description the slug comes from it verbatim; without one the slug\n" +
-			"is derived from the uncommitted diff. A leading TICKET argument becomes\n" +
-			"the branch prefix when it matches the preset's ticket pattern; anything\n" +
-			"else is description text.",
+		Long: "The slug is written by the model: a description is the task it names the\n" +
+			"branch for, not the slug itself; without one the model reads the\n" +
+			"uncommitted diff instead. A leading TICKET argument becomes the branch\n" +
+			"prefix when it matches the preset's ticket pattern; anything else is\n" +
+			"description text.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			a, err := build(cmd.Context(), g, prompterFor(g, out), progressFor(g, out))
 			if err != nil {

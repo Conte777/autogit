@@ -57,7 +57,9 @@ subject, and the same phrase when a user hands it to `autogit branch`.
 _Avoid_: summary, message text
 
 **Slug**:
-A description reduced to the hyphenated form a branch name can carry.
+The hyphenated phrase that names a branch. The model writes it — from the
+Description when there is one, otherwise from the diff — rather than mechanically
+shortening the Description.
 _Avoid_: kebab, handle
 
 **Body**:
