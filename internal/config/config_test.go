@@ -1053,3 +1053,19 @@ func quote(s string) string {
 	}
 	return string(b)
 }
+
+func TestClaudeCLIThinkingIsOffUntilAskedFor(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFile(t, dir, "config.json", `{"providers":{"claude-cli":{"thinking":true}}}`)
+
+	cfg, err := config.Load(config.Options{GlobalPath: path, Env: envOf(nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Providers.ClaudeCLI.Thinking {
+		t.Error("thinking stayed off although the config asked for it")
+	}
+	if config.Default().Providers.ClaudeCLI.Thinking {
+		t.Error("thinking is on by default, which is the latency this setting exists to avoid")
+	}
+}

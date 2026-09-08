@@ -28,6 +28,7 @@ var subprocesses = map[string]func(config.Providers) gen.Provider{
 			Binary:    p.ClaudeCLI.Binary,
 			Model:     p.ClaudeCLI.Model,
 			ExtraArgs: p.ClaudeCLI.ExtraArgs,
+			Thinking:  p.ClaudeCLI.Thinking,
 		}
 	},
 }

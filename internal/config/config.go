@@ -80,6 +80,7 @@ type ClaudeCLI struct {
 	Binary    string   `json:"binary,omitempty"`
 	Model     string   `json:"model,omitempty"`
 	ExtraArgs []string `json:"extraArgs,omitempty"`
+	Thinking  bool     `json:"thinking" jsonschema:"let the model think before it answers; off keeps one turn short and predictable"`
 }
 
 // PresetOverride is a partial preset kept as raw JSON so it can be decoded on
