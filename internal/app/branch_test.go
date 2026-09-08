@@ -68,6 +68,21 @@ func TestBranchKeepsALongSlugWhole(t *testing.T) {
 	}
 }
 
+func TestBranchFromANonLatinDescription(t *testing.T) {
+	e := newEnv(t, "fix crash-on-retry")
+	e.commitFile("a.txt", "one\n", "init")
+
+	got, err := e.app().Branch(context.Background(), app.BranchRequest{
+		Description: "исправить падение при ретрае",
+	})
+	if err != nil {
+		t.Fatalf("a description outside [a-z0-9] broke branch: %v", err)
+	}
+	if got.Name != "fix/crash-on-retry" {
+		t.Errorf("Name = %q; the model transliterates, the description is never slugged directly", got.Name)
+	}
+}
+
 func TestBranchJoinsASpacedSlugFromTheModel(t *testing.T) {
 	e := newEnv(t, "add retry logic")
 	e.cfg.Preset = "ticket"

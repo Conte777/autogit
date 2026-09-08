@@ -40,16 +40,26 @@ explanations, which is what this decision exists to remove.
 
 `maxWords` is gone from `BranchFormat`. Config keys are strict, so a file still
 carrying it is a startup error rather than a key quietly ignored — a breaking
-change taken deliberately at `v0.2.0`, because accepting a word limit that no
-longer limits anything is the same gap between word and deed that prompted the
-change.
+change taken deliberately in the release after `v0.2.0`, because accepting a
+word limit that no longer limits anything is the same gap between word and deed
+that prompted the change.
+
+An ejected prompt breaks the same way, and less legibly. `autogit preset eject`
+copies `branch.md` verbatim into the repository, so a tree that ejected before
+this change still holds `{{.MaxWords}}`, and `prompt.Parse` dry-runs every
+template against an empty `BranchData` with `missingkey=error`: `autogit branch`
+then fails at prompt load with `can't evaluate field MaxWords in type
+prompt.BranchData`. The fix is to re-eject, or to edit the two lines by hand.
+Only `branch` is affected — the branch template is loaded inside `askBranch`, so
+`autogit commit` keeps working.
 
 `maxSlugLen` is the only remaining constraint on a slug, and the branch prompts
 now state it: the model is told the character budget it has to fit.
 
-A model that answers with spaces instead of hyphens is joined, not rejected —
-`SlugRules.Check` already canonicalises punctuation, and spending another
-provider round-trip on it would buy nothing.
+A model that answers with spaces instead of hyphens is joined, not rejected.
+`branchValidator.Check` hyphenates the fields before handing them on, the way
+its own `<type> <slug>` arm already did; spending another provider round-trip on
+whitespace would buy nothing.
 
 The diff is not read when a description is present. `autogit branch` with a
 description is typed before the edits exist.

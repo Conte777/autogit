@@ -101,9 +101,6 @@ func (a *App) Branch(ctx context.Context, req BranchRequest) (BranchResult, erro
 		typ, prefix = answer.Type, answer.Type
 	}
 
-	if slug == "" {
-		return BranchResult{}, ErrNoBranchInput
-	}
 	if prefix == "" && len(format.Types) > 0 {
 		typ, prefix = format.Types[0], format.Types[0]
 	}
