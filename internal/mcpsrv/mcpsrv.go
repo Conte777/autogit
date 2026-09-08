@@ -66,11 +66,16 @@ func (s *Server) Register(m *mcp.Server) {
 		Description: "Commit the staged changes with a message generated and validated " +
 			"server-side from the diff. You do not write or pass the message.\n\n" +
 			"Use ONLY when the user explicitly asks to commit.\n\n" +
-			"Committing to a protected branch (`main`, `master`, `release/*`, …) needs " +
-			"the user's explicit yes, obtained by you BEFORE calling this tool — ask " +
-			"them directly (with `AskUserQuestion` where you have it) and wait for the " +
-			"answer. Never assume it, never infer it from an earlier instruction to " +
-			"commit, and never commit around autogit if the tool refuses.",
+			"Committing to a branch autogit's `protectedBranches` declares protected " +
+			"needs the user's explicit yes, obtained by you BEFORE calling this tool — " +
+			"ask them directly (with `AskUserQuestion` where you have it) and wait for " +
+			"the answer. Never assume it, and never infer it from an earlier " +
+			"instruction to commit. You cannot tell from here which branches are " +
+			"protected: the set is the user's configuration, it is wider than `main`, " +
+			"and it is the server that decides.\n\n" +
+			"A refusal from this tool is final. Do not retry it, do not run `autogit` " +
+			"or `git commit` yourself, and do not reach around autogit by any other " +
+			"route — report the refusal to the user and let them answer it.",
 	}, s.commit)
 
 	mcp.AddTool(m, &mcp.Tool{

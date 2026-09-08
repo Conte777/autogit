@@ -70,7 +70,6 @@ type CommitResult struct {
 	ShortHash string
 	Preview   bool
 	Attempts  int
-	Branch    string
 	// Prepared names the operation whose own message was committed verbatim.
 	// Empty when the message was generated.
 	Prepared git.Operation
@@ -98,7 +97,7 @@ func (a *App) Commit(ctx context.Context, req CommitRequest) (CommitResult, erro
 	}
 
 	if op != git.OpNone && req.Preview {
-		return CommitResult{Message: prepared, Branch: branch.Name, Preview: true, Prepared: op}, nil
+		return CommitResult{Message: prepared, Preview: true, Prepared: op}, nil
 	}
 	if !req.Preview {
 		// Never gated on preparedMessage: a conflicted `merge --squash` blocks
@@ -117,7 +116,7 @@ func (a *App) Commit(ctx context.Context, req CommitRequest) (CommitResult, erro
 		return CommitResult{}, stageErr
 	}
 
-	out := CommitResult{Branch: branch.Name, Preview: req.Preview, Prepared: op}
+	out := CommitResult{Preview: req.Preview, Prepared: op}
 	if op != git.OpNone {
 		out.Message = prepared
 	}

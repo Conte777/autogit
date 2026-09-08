@@ -33,8 +33,11 @@ not a gate; it is a reason to turn the feature off.
 and refused, and refusing it still costs nothing: the model would set it, and
 the schema would advertise that setting it is a thing one does. Taking the
 model's word implicitly, from a description it was given, at least does not
-publish an escape hatch on the tool's own interface —
-`TestCommitToolHasNoProtectedBranchEscape` still holds the schema to that.
+publish an escape hatch on the tool's own interface.
+`TestCommitToolHasNoProtectedBranchEscape` holds the schema to that by pinning
+the whole property set of both tools, so a new parameter fails the test whatever
+it is named — searching the schema for the word "protected" would have let
+`confirmed` straight through.
 
 **A forced refusal on the first call.** The tool could always refuse a protected
 branch once, so the second call proves a round trip through the agent's own
@@ -64,6 +67,18 @@ slash command with no agent turn to ask in, which is why the request carries
 `Agent` — a boolean the MCP surface sets and no other caller does — rather than
 letting the config key open every non-interactive path. `internal/cli/exit.go`
 keeps exit code 5 for a protected branch.
+
+The refusal has to be worded as final, and the description says so. The model
+reading it holds a shell: told only "do not commit around autogit", it can read
+`autogit commit --force` out of the refusal's own hint and run that instead,
+which is neither a commit around autogit nor a human setting `--force`. So the
+description forbids retrying, running `autogit` or `git` directly, and reaching
+around by any other route, and leaves the refusal for the user to answer.
+
+For the same reason the description names no branches. It cannot: the protected
+set is `protectedBranches` in the user's configuration, wider than `main` by
+default and arbitrary after that. A list of examples would read to a model on
+`develop` as permission, and `develop` is protected out of the box.
 
 The description is static. `Register` runs before any repository is known,
 config is loaded per-repo inside the builder, and a workspace rule can override

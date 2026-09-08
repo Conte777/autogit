@@ -107,7 +107,7 @@ func TestCommitToolDescriptionTellsTheAgentToAsk(t *testing.T) {
 	if description == "" {
 		t.Fatal("no commit tool")
 	}
-	for _, want := range []string{"protected branch", "AskUserQuestion", "before calling this tool"} {
+	for _, want := range []string{"protected", "ask them directly", "before calling this tool", "final"} {
 		if !strings.Contains(strings.ToLower(description), strings.ToLower(want)) {
 			t.Errorf("the description does not mention %q:\n%s", want, description)
 		}
@@ -222,18 +222,41 @@ func TestCommitToolHasNoProtectedBranchEscape(t *testing.T) {
 		t.Errorf("result = %q", text(t, result))
 	}
 
-	// The parameter must not exist at all, so the model cannot even try.
+	// No parameter may exist through which a model authorises itself, whatever
+	// it is called — `allowProtectedBranch`, `force`, `confirmed`. Pinning the
+	// whole property set rather than searching it for a word is what makes that
+	// an invariant instead of a spelling check.
+	want := map[string]map[string]bool{
+		"commit": {"repoPath": true, "stageMode": true, "dryRun": true},
+		"branch": {"repoPath": true, "ticket": true, "description": true},
+	}
 	tools, err := s.ListTools(context.Background(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, tool := range tools.Tools {
+		expected, ok := want[tool.Name]
+		if !ok {
+			t.Errorf("unexpected tool %s; add its parameters to this test", tool.Name)
+			continue
+		}
 		schema, err := json.Marshal(tool.InputSchema)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if strings.Contains(strings.ToLower(string(schema)), "protected") {
-			t.Errorf("tool %s exposes a protected-branch parameter: %s", tool.Name, schema)
+		var decoded struct {
+			Properties map[string]json.RawMessage `json:"properties"`
+		}
+		if err := json.Unmarshal(schema, &decoded); err != nil {
+			t.Fatal(err)
+		}
+		for name := range decoded.Properties {
+			if !expected[name] {
+				t.Errorf("tool %s exposes an unreviewed parameter %q: %s", tool.Name, name, schema)
+			}
+		}
+		if got, expect := len(decoded.Properties), len(expected); got != expect {
+			t.Errorf("tool %s has %d parameters, want %d: %s", tool.Name, got, expect, schema)
 		}
 	}
 }

@@ -135,6 +135,13 @@ override is the agent's own assertion that it asked the user, which the global
 `mcp.allowProtectedBranch` permits and, off by default, refuses.
 _Avoid_: main branch, locked branch
 
+**Agent assertion**:
+An agent's word that it put a protected branch to the user and got a yes, made
+by calling the MCP `commit` tool at all — the tool's description is what asks it
+to. It is an instruction the agent is trusted to have followed, not a fact the
+server can check, which is why the global key gating it is off by default.
+_Avoid_: consent, approval, confirmation
+
 **Global config**:
 The user's own config file. The only place that may choose a provider.
 _Avoid_: user config, home config
