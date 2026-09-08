@@ -26,26 +26,37 @@ const (
 	defaultTimeout       = 30 * time.Second
 	defaultCommitTimeout = 30 * time.Second
 	waitDelay            = 5 * time.Second
+	maxDiagnostic        = 1024
 )
 
 // ErrNotARepo is returned by Open when path is outside any git repository.
 var ErrNotARepo = errors.New("not a git repository")
+
+// ErrNothingToCommit means the index holds nothing for git to record.
+var ErrNothingToCommit = errors.New("nothing staged")
 
 // StateError reports a repository state that makes committing unsafe.
 type StateError struct{ Reason string }
 
 func (e *StateError) Error() string { return e.Reason }
 
-// ExecError carries git's own stderr, which is the only useful diagnostic.
+// ExecError carries git's own diagnostic. Stderr is where most of git speaks;
+// Stdout is the fallback for the commands that explain themselves there, such
+// as `git commit` on an index that holds nothing.
 type ExecError struct {
 	Args   []string
 	Stderr string
+	Stdout string
 	Err    error
 }
 
 func (e *ExecError) Error() string {
-	if e.Stderr != "" {
-		return fmt.Sprintf("git %s: %s", strings.Join(e.Args, " "), e.Stderr)
+	detail := e.Stderr
+	if detail == "" {
+		detail = e.Stdout
+	}
+	if detail != "" {
+		return fmt.Sprintf("git %s: %s", strings.Join(e.Args, " "), detail)
 	}
 	return fmt.Sprintf("git %s: %v", strings.Join(e.Args, " "), e.Err)
 }
@@ -146,9 +157,25 @@ func (r *Repo) runBounded(ctx context.Context, timeout time.Duration, limit int,
 		if ctx.Err() != nil {
 			err = fmt.Errorf("%w (%s)", ctx.Err(), timeout)
 		}
-		return stdout.String(), false, &ExecError{Args: args, Stderr: strings.TrimSpace(stderr.String()), Err: err}
+		return stdout.String(), false, &ExecError{
+			Args:   args,
+			Stderr: strings.TrimSpace(stderr.String()),
+			Stdout: diagnostic(stdout.String()),
+			Err:    err,
+		}
 	}
 	return stdout.String(), false, nil
+}
+
+// diagnostic trims stdout down to something an error message can carry: the
+// commands that fail with an explanation there print a line or two, while the
+// ones that stream a payload would otherwise paste a whole diff into it.
+func diagnostic(out string) string {
+	out = strings.TrimSpace(out)
+	if len(out) <= maxDiagnostic {
+		return out
+	}
+	return strings.ToValidUTF8(out[:maxDiagnostic], "") + "…"
 }
 
 type capped struct {
@@ -315,6 +342,12 @@ type Result struct {
 
 // Commit writes msg through stdin and reports what git actually recorded.
 func (r *Repo) Commit(ctx context.Context, msg string) (Result, error) {
+	// The index is re-read here because generating the message took time a
+	// second autogit run could have used to commit everything itself. Without
+	// it that loss reaches the user as git's bare exit status.
+	if err := r.requireSomethingToCommit(ctx); err != nil {
+		return Result{}, err
+	}
 	// -F - because `-m` is not what git's own editor path does, and
 	// --cleanup=whitespace because the default strips body lines starting
 	// with '#'.
@@ -335,6 +368,24 @@ func (r *Repo) Commit(ctx context.Context, msg string) (Result, error) {
 		ShortHash: parts[1],
 		Message:   strings.TrimRight(parts[2], "\n"),
 	}, nil
+}
+
+// requireSomethingToCommit reports the empty index as the state it is, except
+// under a merge: `git merge -s ours` records a tree equal to HEAD's, and that
+// commit is the only way out of the merge.
+func (r *Repo) requireSomethingToCommit(ctx context.Context) error {
+	staged, err := r.HasStaged(ctx)
+	if err != nil || staged {
+		return err
+	}
+	st, err := r.State(ctx)
+	if err != nil {
+		return err
+	}
+	if st.Op == OpMerge {
+		return nil
+	}
+	return ErrNothingToCommit
 }
 
 // BranchExists reports whether a local branch of that name is already there.

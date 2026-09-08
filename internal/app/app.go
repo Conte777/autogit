@@ -58,8 +58,10 @@ const (
 
 func (a *App) Root() string { return a.repo.Root() }
 
-// ErrNothingToCommit means the index is empty and nothing was asked to fill it.
-var ErrNothingToCommit = errors.New("nothing staged")
+// ErrNothingToCommit means the index is empty and nothing was asked to fill
+// it. It is git's own sentinel: the index can also turn out empty at the last
+// moment, inside Repo.Commit, and both losses are the same state to a caller.
+var ErrNothingToCommit = git.ErrNothingToCommit
 
 // ProtectedBranchError means the branch needs an explicit --force.
 type ProtectedBranchError struct {

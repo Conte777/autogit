@@ -148,6 +148,97 @@ func TestCommitReportsHookRewrite(t *testing.T) {
 	}
 }
 
+func TestCommitOnAnEmptyIndexIsNothingToCommit(t *testing.T) {
+	ctx := context.Background()
+	dir := newRepo(t)
+	write(t, dir, "a.txt", "one\n")
+	runGit(t, dir, "add", ".")
+	runGit(t, dir, "commit", "-m", "init")
+
+	_, err := open(t, dir).Commit(ctx, "feat: nothing to record")
+	if !errors.Is(err, ErrNothingToCommit) {
+		t.Fatalf("Commit() on an empty index = %v, want ErrNothingToCommit", err)
+	}
+}
+
+// `git merge -s ours` records a merge whose tree equals HEAD's, so the empty
+// index is the answer git wants, not a state to refuse.
+func TestCommitAllowsAMergeWithAnEmptyIndex(t *testing.T) {
+	ctx := context.Background()
+	dir := newRepo(t)
+	write(t, dir, "a.txt", "one\n")
+	runGit(t, dir, "add", ".")
+	runGit(t, dir, "commit", "-m", "init")
+	runGit(t, dir, "switch", "-c", "side")
+	write(t, dir, "b.txt", "side\n")
+	runGit(t, dir, "add", ".")
+	runGit(t, dir, "commit", "-m", "side")
+	runGit(t, dir, "switch", "main")
+	runGit(t, dir, "merge", "--no-commit", "-s", "ours", "side")
+
+	if _, err := open(t, dir).Commit(ctx, "Merge branch 'side'"); err != nil {
+		t.Fatal(err)
+	}
+	if parents := strings.Fields(runGit(t, dir, "log", "-1", "--format=%P")); len(parents) != 2 {
+		t.Errorf("the commit has %d parent(s), want 2", len(parents))
+	}
+}
+
+// The index survives the pre-commit check and is emptied before git records
+// anything — the two-runs-at-once race the hook reproduces here. git explains
+// itself on stdout and leaves stderr empty.
+func TestCommitReportsAnIndexEmptiedUnderIt(t *testing.T) {
+	ctx := context.Background()
+	dir := newRepo(t)
+	write(t, dir, "a.txt", "one\n")
+	runGit(t, dir, "add", ".")
+	runGit(t, dir, "commit", "-m", "init")
+	hook := filepath.Join(dir, ".git", "hooks", "pre-commit")
+	if err := os.WriteFile(hook, []byte("#!/bin/sh\ngit commit -q --no-verify -m 'the other run'\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write(t, dir, "b.txt", "two\n")
+	runGit(t, dir, "add", ".")
+
+	_, err := open(t, dir).Commit(ctx, "feat: lost the race")
+	if err == nil {
+		t.Fatal("Commit() succeeded, want the failure git reported")
+	}
+	if !strings.Contains(err.Error(), "nothing to commit") {
+		t.Errorf("Commit() error = %q, want git's own stdout explanation", err)
+	}
+}
+
+func TestExecErrorPrefersStderrOverStdout(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  *ExecError
+		want string
+	}{
+		{
+			name: "stderr",
+			err:  &ExecError{Args: []string{"commit"}, Stderr: "fatal: bad", Stdout: "ignored", Err: errors.New("exit status 1")},
+			want: "git commit: fatal: bad",
+		},
+		{
+			name: "stdout when stderr is empty",
+			err:  &ExecError{Args: []string{"commit"}, Stdout: "nothing to commit, working tree clean", Err: errors.New("exit status 1")},
+			want: "git commit: nothing to commit, working tree clean",
+		},
+		{
+			name: "the error itself when git said nothing",
+			err:  &ExecError{Args: []string{"commit"}, Err: errors.New("exit status 1")},
+			want: "git commit: exit status 1",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.err.Error(); got != tc.want {
+				t.Errorf("Error() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestSubjectsAndBranchLifecycle(t *testing.T) {
 	ctx := context.Background()
 	dir := newRepo(t)
