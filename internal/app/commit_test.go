@@ -8,8 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Conte777/autogit/internal/app"
+	"github.com/Conte777/autogit/internal/config"
 	"github.com/Conte777/autogit/internal/gen"
 	"github.com/Conte777/autogit/internal/git"
 	"github.com/Conte777/autogit/internal/provider/mock"
@@ -783,5 +785,50 @@ func TestRepoConfigCannotSendAPromptFromOutsideTheRepo(t *testing.T) {
 	}
 	if e.prov.Sessions != 0 {
 		t.Errorf("sessions = %d, want the provider left uncontacted", e.prov.Sessions)
+	}
+}
+
+// A generation that runs out of time says so through the provider, which knows
+// nothing about the budget it was given.
+func TestTimeoutErrorNamesTheBudget(t *testing.T) {
+	e := newEnv(t, "feat: add the greeting file")
+	e.commitFile("a.txt", "one\n", "init")
+	e.write("b.txt", "two\n")
+	e.git("add", "b.txt")
+
+	e.cfg.Timeout = config.Duration(50 * time.Millisecond)
+	e.prov.Hook = func(int, string) { time.Sleep(200 * time.Millisecond) }
+
+	_, err := e.app().Commit(context.Background(), app.CommitRequest{Stage: app.StageStaged})
+	if err == nil {
+		t.Fatal("Commit succeeded although the generation ran out of time")
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err = %v, want a deadline error the exit codes can classify", err)
+	}
+	if !strings.Contains(err.Error(), "50ms budget") || !strings.Contains(err.Error(), "timeout") {
+		t.Errorf("err = %v, want the budget that ran out and the setting that holds it", err)
+	}
+}
+
+// A transport with a deadline of its own reports the same error while the
+// generation budget is still running — or switched off entirely, as here.
+// Pointing at `timeout` then sends the user to raise a setting that had
+// nothing to do with it.
+func TestTimeoutOfSomebodyElseIsNotBlamedOnTheBudget(t *testing.T) {
+	e := newEnv(t)
+	e.commitFile("a.txt", "one\n", "init")
+	e.write("b.txt", "two\n")
+	e.git("add", "b.txt")
+
+	e.cfg.Timeout = 0
+	e.prov.SendErr = context.DeadlineExceeded
+
+	_, err := e.app().Commit(context.Background(), app.CommitRequest{Stage: app.StageStaged})
+	if err == nil {
+		t.Fatal("Commit succeeded although the provider timed out")
+	}
+	if strings.Contains(err.Error(), "budget") {
+		t.Errorf("err = %v, want no claim about a budget autogit never imposed", err)
 	}
 }

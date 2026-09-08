@@ -119,6 +119,10 @@
               "items": {
                 "type": "string"
               }
+            },
+            "thinking": {
+              "type": "boolean",
+              "description": "let the model think before it answers; off keeps one turn short and predictable"
             }
           },
           "additionalProperties": false
@@ -414,6 +418,10 @@
                     "items": {
                       "type": "string"
                     }
+                  },
+                  "thinking": {
+                    "type": "boolean",
+                    "description": "let the model think before it answers; off keeps one turn short and predictable"
                   }
                 },
                 "additionalProperties": false
