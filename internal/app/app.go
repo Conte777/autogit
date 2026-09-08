@@ -92,11 +92,22 @@ func (e *ConsentError) Error() string {
 var ErrCanceled = errors.New("cancelled")
 
 func (a *App) generate(ctx context.Context, req gen.Request) (gen.Result, error) {
-	if timeout := a.cfg.Timeout.Duration(); timeout > 0 {
+	caller, timeout := ctx, a.cfg.Timeout.Duration()
+	if timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
 	}
 	req.Attempts = a.cfg.Attempts
-	return gen.Generate(ctx, a.provider, req)
+
+	result, err := gen.Generate(ctx, a.provider, req)
+	// "context deadline exceeded" alone names neither the budget that ran out
+	// nor the setting that holds it. Only ours is ours to explain: the caller's
+	// deadline is not, and neither is a transport's own, which reports the same
+	// error while this context is still running.
+	if err != nil && caller.Err() == nil &&
+		errors.Is(ctx.Err(), context.DeadlineExceeded) && errors.Is(err, context.DeadlineExceeded) {
+		return result, fmt.Errorf("%w (%s budget; raise \"timeout\" in the config)", err, timeout)
+	}
+	return result, err
 }
