@@ -26,11 +26,6 @@ import (
 // the tests exercise the protocol rather than the handler functions.
 func connect(t *testing.T, build mcpsrv.Builder) *mcp.ClientSession {
 	t.Helper()
-	return connectWith(t, build, nil)
-}
-
-func connectWith(t *testing.T, build mcpsrv.Builder, opts *mcp.ClientOptions) *mcp.ClientSession {
-	t.Helper()
 	server := mcp.NewServer(&mcp.Implementation{Name: "autogit", Version: "test"}, nil)
 	mcpsrv.New(build).Register(server)
 
@@ -39,7 +34,7 @@ func connectWith(t *testing.T, build mcpsrv.Builder, opts *mcp.ClientOptions) *m
 	if _, err := server.Connect(ctx, serverTransport, nil); err != nil {
 		t.Fatal(err)
 	}
-	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "test"}, opts)
+	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "test"}, nil)
 	session, err := client.Connect(ctx, clientTransport, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -58,202 +53,64 @@ func protectedMain(t *testing.T, prov *mock.Provider) (string, mcpsrv.Builder) {
 	})
 }
 
-// asks answers every elicitation with one action and records the questions.
-type asks struct {
-	action   string
-	mu       sync.Mutex
-	messages []string
-}
-
-func (a *asks) options() *mcp.ClientOptions {
-	return &mcp.ClientOptions{
-		ElicitationHandler: func(_ context.Context, req *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
-			a.mu.Lock()
-			a.messages = append(a.messages, req.Params.Message)
-			a.mu.Unlock()
-			return &mcp.ElicitResult{Action: a.action}, nil
-		},
-	}
-}
-
-func (a *asks) count() int {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return len(a.messages)
-}
-
-func stage(t *testing.T, dir, name, content string) {
-	t.Helper()
-	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	run(t, dir, "add", ".")
-}
-
-func TestCommitToolAsksTheUserOnAProtectedBranch(t *testing.T) {
+func TestCommitToolCommitsOnAProtectedBranchWhenConfigured(t *testing.T) {
 	prov := &mock.Provider{Replies: []string{"feat: add the greeting file"}}
 	dir, build := protectedMain(t, prov)
-	answers := &asks{action: "accept"}
-	s := connectWith(t, build, answers.options())
+	s := connect(t, build)
 
 	result := call(t, s, "commit", map[string]any{"repoPath": dir})
 	if result.IsError {
-		t.Fatalf("consent did not let the commit through: %s", text(t, result))
-	}
-	if answers.count() != 1 {
-		t.Fatalf("the user was asked %d times, want 1", answers.count())
-	}
-	if !strings.Contains(answers.messages[0], "main") {
-		t.Errorf("question = %q, want the branch named", answers.messages[0])
+		t.Fatalf("mcp.allowProtectedBranch did not let the commit through: %s", text(t, result))
 	}
 	if got := strings.TrimSpace(run(t, dir, "log", "-1", "--format=%s")); got != "feat: add the greeting file" {
 		t.Errorf("git log says %q", got)
 	}
 }
 
-func TestCommitToolRefusalCommitsNothing(t *testing.T) {
+func TestCommitToolRefusesAProtectedBranchWhileTheConfigForbidsIt(t *testing.T) {
+	dir := repo(t)
+	run(t, dir, "branch", "-m", "main")
 	prov := &mock.Provider{Replies: []string{"feat: add the greeting file"}}
-	dir, build := protectedMain(t, prov)
-	s := connectWith(t, build, (&asks{action: "decline"}).options())
+	s := connect(t, builder(t, prov, func(c *config.Config) {
+		c.ProtectedBranches = []string{"main"}
+	}))
 
 	result := call(t, s, "commit", map[string]any{"repoPath": dir})
 	if !result.IsError {
-		t.Fatal("a refusal still committed")
+		t.Fatal("the model committed on main while mcp.allowProtectedBranch was off")
 	}
-	if !strings.Contains(text(t, result), "did not consent") {
-		t.Errorf("result = %q", text(t, result))
+	for _, want := range []string{"/autogit:commit force", "--force"} {
+		if !strings.Contains(text(t, result), want) {
+			t.Errorf("result = %q, want the human path %q spelled out", text(t, result), want)
+		}
 	}
 	if cmd := exec.Command("git", "-C", dir, "rev-parse", "HEAD"); cmd.Run() == nil {
 		t.Error("a refusal still created a commit")
 	}
 }
 
-func TestCommitToolDismissalCommitsNothing(t *testing.T) {
-	prov := &mock.Provider{Replies: []string{"feat: add the greeting file"}}
-	dir, build := protectedMain(t, prov)
-	s := connectWith(t, build, (&asks{action: "cancel"}).options())
+// TestCommitToolDescriptionTellsTheAgentToAsk guards the only thing left that
+// stands between a model and `main` when the key is on: the instruction.
+func TestCommitToolDescriptionTellsTheAgentToAsk(t *testing.T) {
+	s := connect(t, builder(t, &mock.Provider{}, nil))
 
-	result := call(t, s, "commit", map[string]any{"repoPath": dir})
-	if !result.IsError {
-		t.Fatal("a dismissed question still committed")
+	tools, err := s.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !strings.Contains(text(t, result), "did not consent") {
-		t.Errorf("result = %q", text(t, result))
+	var description string
+	for _, tool := range tools.Tools {
+		if tool.Name == "commit" {
+			description = tool.Description
+		}
 	}
-}
-
-// TestConsentAnsweredAboutAnotherBranchIsNotSpent moves HEAD to a second
-// protected branch while the question about the first is open. The lock is not
-// held across the wait, so this is reachable, and the answer must not carry.
-func TestConsentAnsweredAboutAnotherBranchIsNotSpent(t *testing.T) {
-	dir := repo(t)
-	run(t, dir, "branch", "-m", "main")
-	prov := &mock.Provider{Replies: []string{"feat: add the greeting file"}}
-	build := builder(t, prov, func(c *config.Config) {
-		c.ProtectedBranches = []string{"main", "release/*"}
-		c.MCP.AllowProtectedBranch = true
-	})
-
-	var asked []string
-	s := connectWith(t, build, &mcp.ClientOptions{
-		ElicitationHandler: func(_ context.Context, req *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
-			asked = append(asked, req.Params.Message)
-			if len(asked) == 1 {
-				run(t, dir, "switch", "-c", "release/1.2")
-			}
-			return &mcp.ElicitResult{Action: "accept"}, nil
-		},
-	})
-
-	result := call(t, s, "commit", map[string]any{"repoPath": dir})
-	if result.IsError {
-		t.Fatalf("commit failed: %s", text(t, result))
+	if description == "" {
+		t.Fatal("no commit tool")
 	}
-	if len(asked) != 2 {
-		t.Fatalf("the user was asked %d times, want 2: an answer about main cannot pay for release/1.2\n%v",
-			len(asked), asked)
-	}
-	if !strings.Contains(asked[0], "main") || !strings.Contains(asked[1], "release/1.2") {
-		t.Errorf("questions = %v, want one per branch", asked)
-	}
-}
-
-func TestConsentIsNotAskedTwiceOnTheSameBranch(t *testing.T) {
-	prov := &mock.Provider{Replies: []string{"feat: add the first file", "feat: add the second file"}}
-	dir, build := protectedMain(t, prov)
-	answers := &asks{action: "accept"}
-	s := connectWith(t, build, answers.options())
-
-	if result := call(t, s, "commit", map[string]any{"repoPath": dir}); result.IsError {
-		t.Fatalf("first commit failed: %s", text(t, result))
-	}
-	stage(t, dir, "b.txt", "two\n")
-	if result := call(t, s, "commit", map[string]any{"repoPath": dir}); result.IsError {
-		t.Fatalf("second commit failed: %s", text(t, result))
-	}
-	if answers.count() != 1 {
-		t.Errorf("the user was asked %d times, want 1 for one episode on main", answers.count())
-	}
-}
-
-func TestConsentExpiresWhenTheWorkMovesToAnotherBranch(t *testing.T) {
-	prov := &mock.Provider{Replies: []string{
-		"feat: add the first file", "feat: add the second file", "feat: add the third file",
-	}}
-	dir, build := protectedMain(t, prov)
-	answers := &asks{action: "accept"}
-	s := connectWith(t, build, answers.options())
-
-	if result := call(t, s, "commit", map[string]any{"repoPath": dir}); result.IsError {
-		t.Fatalf("commit on main failed: %s", text(t, result))
-	}
-
-	run(t, dir, "switch", "-c", "feature")
-	stage(t, dir, "b.txt", "two\n")
-	if result := call(t, s, "commit", map[string]any{"repoPath": dir}); result.IsError {
-		t.Fatalf("commit on feature failed: %s", text(t, result))
-	}
-
-	run(t, dir, "switch", "main")
-	stage(t, dir, "c.txt", "three\n")
-	if result := call(t, s, "commit", map[string]any{"repoPath": dir}); result.IsError {
-		t.Fatalf("second commit on main failed: %s", text(t, result))
-	}
-
-	if answers.count() != 2 {
-		t.Errorf("the user was asked %d times, want 2: leaving main expires the consent", answers.count())
-	}
-}
-
-func TestConsentIsNeverAskedForWhileTheConfigForbidsIt(t *testing.T) {
-	dir := repo(t)
-	run(t, dir, "branch", "-m", "main")
-	prov := &mock.Provider{Replies: []string{"feat: add the greeting file"}}
-	answers := &asks{action: "accept"}
-	s := connectWith(t, builder(t, prov, func(c *config.Config) {
-		c.ProtectedBranches = []string{"main"}
-	}), answers.options())
-
-	result := call(t, s, "commit", map[string]any{"repoPath": dir})
-	if !result.IsError {
-		t.Fatal("the model committed on main while mcp.allowProtectedBranch was off")
-	}
-	if answers.count() != 0 {
-		t.Errorf("the user was asked anyway: %v", answers.messages)
-	}
-}
-
-func TestCommitToolSaysWhoCanAllowItWhenTheClientCannotAsk(t *testing.T) {
-	prov := &mock.Provider{Replies: []string{"feat: add the greeting file"}}
-	dir, build := protectedMain(t, prov)
-	s := connect(t, build)
-
-	result := call(t, s, "commit", map[string]any{"repoPath": dir})
-	if !result.IsError {
-		t.Fatal("a client that cannot ask the user still committed on main")
-	}
-	if !strings.Contains(text(t, result), "--force") {
-		t.Errorf("result = %q, want the human path spelled out", text(t, result))
+	for _, want := range []string{"protected", "ask them directly", "before calling this tool", "final"} {
+		if !strings.Contains(strings.ToLower(description), strings.ToLower(want)) {
+			t.Errorf("the description does not mention %q:\n%s", want, description)
+		}
 	}
 }
 
@@ -365,18 +222,41 @@ func TestCommitToolHasNoProtectedBranchEscape(t *testing.T) {
 		t.Errorf("result = %q", text(t, result))
 	}
 
-	// The parameter must not exist at all, so the model cannot even try.
+	// No parameter may exist through which a model authorises itself, whatever
+	// it is called — `allowProtectedBranch`, `force`, `confirmed`. Pinning the
+	// whole property set rather than searching it for a word is what makes that
+	// an invariant instead of a spelling check.
+	want := map[string]map[string]bool{
+		"commit": {"repoPath": true, "stageMode": true, "dryRun": true},
+		"branch": {"repoPath": true, "ticket": true, "description": true},
+	}
 	tools, err := s.ListTools(context.Background(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, tool := range tools.Tools {
+		expected, ok := want[tool.Name]
+		if !ok {
+			t.Errorf("unexpected tool %s; add its parameters to this test", tool.Name)
+			continue
+		}
 		schema, err := json.Marshal(tool.InputSchema)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if strings.Contains(strings.ToLower(string(schema)), "protected") {
-			t.Errorf("tool %s exposes a protected-branch parameter: %s", tool.Name, schema)
+		var decoded struct {
+			Properties map[string]json.RawMessage `json:"properties"`
+		}
+		if err := json.Unmarshal(schema, &decoded); err != nil {
+			t.Fatal(err)
+		}
+		for name := range decoded.Properties {
+			if !expected[name] {
+				t.Errorf("tool %s exposes an unreviewed parameter %q: %s", tool.Name, name, schema)
+			}
+		}
+		if got, expect := len(decoded.Properties), len(expected); got != expect {
+			t.Errorf("tool %s has %d parameters, want %d: %s", tool.Name, got, expect, schema)
 		}
 	}
 }

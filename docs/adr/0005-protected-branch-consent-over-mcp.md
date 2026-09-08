@@ -1,5 +1,7 @@
 # A protected branch over MCP takes the user's consent, never the model's word
 
+**Superseded by** [0008 — Protected-branch approval is the agent's to ask for](0008-protected-branch-approval-moves-to-the-agent.md).
+
 The MCP `commit` tool used to refuse a protected branch outright. The refusal
 was right about the threat and wrong about the remedy: it left the user with no
 way to say yes without leaving the agent, and an agent that has to stop and ask

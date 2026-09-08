@@ -132,16 +132,17 @@ _Avoid_: add mode, staging strategy
 
 **Protected branch**:
 A branch matching a configured glob, where committing requires an explicit
-override. The override is always a human: `--force` where one is typing, and
-Consent where one can be reached.
+override. `--force` is the override where a human is typing. Over MCP the
+override is the agent's own assertion that it asked the user, which the global
+`mcp.allowProtectedBranch` permits and, off by default, refuses.
 _Avoid_: main branch, locked branch
 
-**Consent**:
-The user's permission for one operation, arriving over a channel the model
-neither sees nor can forge. It is the second form of the protected-branch
-override, and it names the branch it was given for — a consent for `main` is not
-a consent for `release/1.2`, and it expires as soon as work commits elsewhere.
-_Avoid_: approval, permission flag, confirmation
+**Agent assertion**:
+An agent's word that it put a protected branch to the user and got a yes, made
+by calling the MCP `commit` tool at all — the tool's description is what asks it
+to. It is an instruction the agent is trusted to have followed, not a fact the
+server can check, which is why the global key gating it is off by default.
+_Avoid_: consent, approval, confirmation
 
 **Global config**:
 The user's own config file. The only place that may choose a provider.
@@ -162,8 +163,8 @@ _Avoid_: project config, local config
 **Surface**:
 The way a request reaches generation — the CLI, the MCP server, or the Claude
 Code hook. What it carries into `app` is the ways of reaching the user: the
-**prompter**, a **Progress** report, and, where it has one, a channel for
-**Consent**. Nothing else about it crosses. Whether a channel may be used is
+**prompter**, a **Progress** report, and whether the caller is an agent that was
+told to ask the user itself. Nothing else about it crosses. What that permits is
 `app`'s to decide, not the surface's. `doctor` is a command, not a surface.
 _Avoid_: entry point, frontend, interface
 
@@ -173,7 +174,8 @@ mcp, on the hook and under `--no-input`. It is the single answer to "is there a
 terminal", and git is told the same thing, so the two cannot disagree.
 
 It is not the answer to "is the user reachable": mcp has no terminal and yet
-reaches the user through Consent, which is why the two are separate.
+reaches the user through the agent driving it, which is why the two are
+separate.
 _Avoid_: interactive flag, no-input flag, tty
 
 **Progress**:
