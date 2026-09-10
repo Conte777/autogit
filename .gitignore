@@ -14,7 +14,8 @@ vendor/
 
 # editors and IDEs
 .idea/
-.vscode/
+.vscode/*
+!.vscode/settings.json
 *.swp
 *.swo
 *~

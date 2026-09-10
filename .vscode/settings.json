@@ -1,0 +1,8 @@
+{
+  "json.schemas": [
+    {
+      "fileMatch": ["/plugins/autogit/hooks/hooks.json"],
+      "url": "https://www.schemastore.org/claude-code-settings.json"
+    }
+  ]
+}
