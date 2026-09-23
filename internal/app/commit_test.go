@@ -326,8 +326,15 @@ func TestTicketPromptStatesTheDescriptionBudget(t *testing.T) {
 	if _, err := e.app().Commit(context.Background(), app.CommitRequest{Stage: app.StageStaged, Preview: true}); err != nil {
 		t.Fatal(err)
 	}
-	if system := systemPromptOf(t, e.prov); !strings.Contains(system, "the description gets at most 40 characters") {
-		t.Errorf("system prompt does not budget 50 - len(\"CUS-2023: \") for the description:\n%s", system)
+	system := systemPromptOf(t, e.prov)
+	if !strings.Contains(system, "aim for a description of 30 characters or\n  fewer; above 40 it is rejected") {
+		t.Errorf("system prompt does not budget the description behind \"CUS-2023: \":\n%s", system)
+	}
+	if !strings.Contains(system, "Aim for 40 characters or fewer in total") || !strings.Contains(system, "50 is a hard limit") {
+		t.Errorf("system prompt does not separate the target from the limit:\n%s", system)
+	}
+	if user := e.prov.SessionTurns(0)[0]; !strings.HasSuffix(user, "which leaves 30 for the description after `CUS-2023: `.") {
+		t.Errorf("first turn does not end with the length target:\n%s", user)
 	}
 }
 

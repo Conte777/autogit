@@ -18,10 +18,11 @@ Format:
 
 Rules for the subject line:
 - `<type>` must be one of: {{range $i, $t := .Types}}{{if $i}}, {{end}}{{$t}}{{end}}.
-- At most {{.MaxSubject}} characters, including the type and the scope.
-{{- if ge .MaxSubject 70}}
-  A subject that fits, 70 characters:
-  feat: add ShutdownWithContext so the server drains connections on exit
+- Aim for {{.TargetSubject}} characters or fewer, including the type and the
+  scope. {{.MaxSubject}} is a hard limit: a longer subject is rejected.
+{{- if ge .TargetSubject 62}}
+  A subject on target, 62 characters:
+  feat: add ShutdownWithContext so the server drains connections
 {{- end}}
 - `<description>` is English in the imperative mood (add, fix, update, remove,
   refactor) and starts with a lowercase verb. Code identifiers after it keep
@@ -83,3 +84,6 @@ The diff above is abbreviated: bodies of the largest files were dropped, but the
 file list is complete. Describe the change as a whole, and never claim a file was
 removed just because its body is missing here.
 {{end}}
+{{- if .TargetSubject}}
+Keep the subject line at {{.TargetSubject}} characters or fewer.
+{{- end}}

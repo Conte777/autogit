@@ -14,9 +14,11 @@ Format: `<prefix>: <description>`
   `fix` for a change that corrects wrong behaviour, and `feat` for everything
   else — new functionality, refactoring, tests, docs, config. Never write
   `refactor`, `chore`, `docs`, `test` or any other type.{{end}}
-- At most {{.MaxSubject}} characters in total, the prefix and `: ` included.
-{{- if .MaxDescAfterTicket}}
-- `{{.Ticket}}: ` is fixed, so the description gets at most {{.MaxDescAfterTicket}} characters.
+- Aim for {{.TargetSubject}} characters or fewer in total, the prefix and `: `
+  included. {{.MaxSubject}} is a hard limit: a longer line is rejected.
+{{- if .TargetDescAfterTicket}}
+- `{{.Ticket}}: ` is fixed, so aim for a description of {{.TargetDescAfterTicket}} characters or
+  fewer; above {{.MaxDescAfterTicket}} it is rejected.
 {{- end}}
 - One line. No body, no footers.
 - The description is English, starts with a lowercase verb and does not end
@@ -31,13 +33,13 @@ Format: `<prefix>: <description>`
   response=>res, database=>db, repository=>repo, parameters=>params,
   initialization=>init.
 {{- if .Ticket}}
-{{- if ge .MaxDescAfterTicket 38}}
+{{- if ge .TargetDescAfterTicket 30}}
 
-A description that fits, 38 characters: add ShutdownWithContext to http server
+A description on target, 30 characters: add ShutdownWithContext to api
 {{- end}}
-{{- else if ge .MaxSubject 48}}
+{{- else if ge .TargetSubject 39}}
 
-A subject that fits, 48 characters: feat: add ShutdownWithContext to the http server
+A subject on target, 39 characters: feat: add ShutdownWithContext to server
 {{- end}}
 
 ## User
@@ -56,3 +58,7 @@ The diff above is abbreviated: bodies of the largest files were dropped, but the
 file list is complete. Never claim a file was removed just because its body is
 missing here.
 {{end}}
+{{- if .TargetSubject}}
+Keep the line at {{.TargetSubject}} characters or fewer
+{{- if .TargetDescAfterTicket}}, which leaves {{.TargetDescAfterTicket}} for the description after `{{.Ticket}}: `{{end}}.
+{{- end}}

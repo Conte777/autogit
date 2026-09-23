@@ -342,20 +342,23 @@ func (a *App) generateMessage(ctx context.Context, branch git.Branch, diff git.D
 		return gen.Result{}, err
 	}
 
+	target := subjectTarget(format.MaxSubject)
 	data := prompt.CommitData{
-		Ticket:             ticket,
-		Branch:             branch.Name,
-		Detached:           branch.Detached,
-		Files:              diff.Files,
-		Diff:               diff.Text,
-		DiffTruncated:      diff.Truncated,
-		Types:              format.Types,
-		MaxSubject:         format.MaxSubject,
-		MaxDescAfterTicket: descBudget(format.MaxSubject, ticket),
-		Scopes:             scope.Hint,
-		ScopeMode:          scope.Mode,
-		WantBody:           format.WantBody(len(diff.Files), countChangedLines(diff.Text)),
-		AllowFooters:       format.Footers,
+		Ticket:                ticket,
+		Branch:                branch.Name,
+		Detached:              branch.Detached,
+		Files:                 diff.Files,
+		Diff:                  diff.Text,
+		DiffTruncated:         diff.Truncated,
+		Types:                 format.Types,
+		MaxSubject:            format.MaxSubject,
+		MaxDescAfterTicket:    descBudget(format.MaxSubject, ticket),
+		TargetSubject:         target,
+		TargetDescAfterTicket: descBudget(target, ticket),
+		Scopes:                scope.Hint,
+		ScopeMode:             scope.Mode,
+		WantBody:              format.WantBody(len(diff.Files), countChangedLines(diff.Text)),
+		AllowFooters:          format.Footers,
 	}
 
 	tmpl, err := a.preset.CommitPrompt()
@@ -371,6 +374,13 @@ func (a *App) generateMessage(ctx context.Context, branch git.Branch, diff git.D
 	// heuristic, and enforcing it would burn every retry on a legitimate body.
 	rules := format.CommitRules(branchSlug, scope)
 	return a.generate(ctx, gen.Request{System: system, Prompt: user, Validator: rules})
+}
+
+func subjectTarget(limit int) int {
+	if limit <= 0 {
+		return 0
+	}
+	return max(limit-10, limit*4/5)
 }
 
 func descBudget(maxSubject int, ticket string) int {

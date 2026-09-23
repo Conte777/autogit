@@ -130,55 +130,96 @@ func TestTicketPromptBudgetsTheDescription(t *testing.T) {
 	p, _ := preset.Builtin("ticket")
 	commit, _ := p.CommitPrompt()
 
-	system, _, err := commit.Render(prompt.CommitData{Ticket: "CUS-2023", MaxSubject: 50, MaxDescAfterTicket: 40})
+	system, user, err := commit.Render(prompt.CommitData{
+		Ticket: "CUS-2023", MaxSubject: 50, MaxDescAfterTicket: 40, TargetSubject: 40, TargetDescAfterTicket: 30,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(system, "the description gets at most 40 characters") {
-		t.Errorf("system prompt does not state the description budget:\n%s", system)
+	for _, want := range []string{
+		"Aim for 40 characters or fewer in total",
+		"50 is a hard limit",
+		"aim for a description of 30 characters or\n  fewer; above 40 it is rejected",
+		"A description on target, 30 characters",
+	} {
+		if !strings.Contains(system, want) {
+			t.Errorf("system prompt lacks %q:\n%s", want, system)
+		}
 	}
-	if !strings.Contains(system, "A description that fits, 38 characters") {
-		t.Errorf("system prompt has no example near the budget:\n%s", system)
+	if !strings.HasSuffix(user, "Keep the line at 40 characters or fewer, which leaves 30 for the description after `CUS-2023: `.") {
+		t.Errorf("user turn does not end with the length target:\n%s", user)
 	}
 
-	system, _, err = commit.Render(prompt.CommitData{MaxSubject: 50})
+	system, user, err = commit.Render(prompt.CommitData{MaxSubject: 50, TargetSubject: 40})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(system, "the description gets at most") {
+	if strings.Contains(system, "aim for a description") {
 		t.Errorf("system prompt budgets a description behind a ticket that does not exist:\n%s", system)
 	}
-	if !strings.Contains(system, "A subject that fits, 48 characters") {
-		t.Errorf("system prompt has no example near the limit:\n%s", system)
+	if !strings.Contains(system, "A subject on target, 39 characters") {
+		t.Errorf("system prompt has no example on target:\n%s", system)
+	}
+	if !strings.HasSuffix(user, "Keep the line at 40 characters or fewer.") {
+		t.Errorf("user turn does not end with the length target:\n%s", user)
 	}
 
-	system, _, err = commit.Render(prompt.CommitData{MaxSubject: 30})
+	system, _, err = commit.Render(prompt.CommitData{MaxSubject: 30, TargetSubject: 24})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(system, "A subject that fits") {
-		t.Errorf("system prompt shows an example over a 30-character limit:\n%s", system)
+	if strings.Contains(system, "on target") {
+		t.Errorf("system prompt shows an example over a 24-character target:\n%s", system)
 	}
 }
 
-var exampleRe = regexp.MustCompile(`fits, (\d+) characters:\s+(.+)`)
+func TestConventionalPromptEndsWithTheLengthTarget(t *testing.T) {
+	p, _ := preset.Builtin("conventional")
+	commit, _ := p.CommitPrompt()
 
-func TestCommitPromptExamplesAreAsLongAsTheyClaim(t *testing.T) {
+	system, user, err := commit.Render(prompt.CommitData{MaxSubject: 72, TargetSubject: 62, ScopeMode: validate.ScopeSuggest})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(system, "Aim for 62 characters or fewer") || !strings.Contains(system, "72 is a hard limit") {
+		t.Errorf("system prompt does not separate the target from the limit:\n%s", system)
+	}
+	if !strings.HasSuffix(user, "Keep the subject line at 62 characters or fewer.") {
+		t.Errorf("user turn does not end with the length target:\n%s", user)
+	}
+}
+
+var exampleRe = regexp.MustCompile(`on target, (\d+) characters:\s+(.+)`)
+
+func TestCommitPromptExamplesFitTheTarget(t *testing.T) {
 	for _, name := range preset.Names() {
 		p, _ := preset.Builtin(name)
 		commit, _ := p.CommitPrompt()
+		limit := p.Commit.MaxSubject
+		target := max(limit-10, limit*4/5)
 		for _, data := range []prompt.CommitData{
-			{MaxSubject: p.Commit.MaxSubject, ScopeMode: validate.ScopeSuggest},
-			{Ticket: "CUS-2023", MaxSubject: p.Commit.MaxSubject, MaxDescAfterTicket: p.Commit.MaxSubject - 10, ScopeMode: validate.ScopeSuggest},
+			{MaxSubject: limit, TargetSubject: target, ScopeMode: validate.ScopeSuggest},
+			{
+				Ticket: "CUS-2023", MaxSubject: limit, TargetSubject: target,
+				MaxDescAfterTicket: limit - 10, TargetDescAfterTicket: target - 10, ScopeMode: validate.ScopeSuggest,
+			},
 		} {
 			system, _, err := commit.Render(data)
 			if err != nil {
 				t.Fatal(err)
 			}
 			for _, m := range exampleRe.FindAllStringSubmatch(system, -1) {
-				want, _ := strconv.Atoi(m[1])
-				if got := utf8.RuneCountInString(strings.TrimSpace(m[2])); got != want {
-					t.Errorf("%s: example %q is %d characters, the prompt claims %d", name, m[2], got, want)
+				claimed, _ := strconv.Atoi(m[1])
+				got := utf8.RuneCountInString(strings.TrimSpace(m[2]))
+				if got != claimed {
+					t.Errorf("%s: example %q is %d characters, the prompt claims %d", name, m[2], got, claimed)
+				}
+				budget := data.TargetSubject
+				if data.TargetDescAfterTicket > 0 && name == "ticket" {
+					budget = data.TargetDescAfterTicket
+				}
+				if got > budget {
+					t.Errorf("%s: example %q is %d characters, over the %d target", name, m[2], got, budget)
 				}
 			}
 		}
@@ -204,15 +245,17 @@ func TestCommitPromptsKeepIdentifierCaseAndShowAnExample(t *testing.T) {
 	for _, name := range preset.Names() {
 		p, _ := preset.Builtin(name)
 		commit, _ := p.CommitPrompt()
-		system, _, err := commit.Render(prompt.CommitData{MaxSubject: p.Commit.MaxSubject, ScopeMode: validate.ScopeSuggest})
+		system, _, err := commit.Render(prompt.CommitData{
+			MaxSubject: p.Commit.MaxSubject, TargetSubject: max(p.Commit.MaxSubject-10, p.Commit.MaxSubject*4/5), ScopeMode: validate.ScopeSuggest,
+		})
 		if err != nil {
 			t.Fatal(err)
 		}
 		if strings.Contains(system, "lowercase English") || !strings.Contains(system, "Code identifiers after it keep") {
 			t.Errorf("%s: system prompt still asks for an all-lowercase description:\n%s", name, system)
 		}
-		if !strings.Contains(system, "A subject that fits") {
-			t.Errorf("%s: system prompt has no example subject near the limit:\n%s", name, system)
+		if !strings.Contains(system, "A subject on target") {
+			t.Errorf("%s: system prompt has no example subject on target:\n%s", name, system)
 		}
 	}
 }

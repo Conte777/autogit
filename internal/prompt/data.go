@@ -5,16 +5,18 @@ import "github.com/Conte777/autogit/internal/validate"
 // CommitData is the template contract of a commit prompt. Every field a
 // template may reference lives here; anything else fails at load time.
 type CommitData struct {
-	Ticket             string // "" when the branch carries none — never invent one
-	Branch             string
-	Detached           bool
-	Files              []string
-	Diff               string
-	DiffTruncated      bool
-	Types              []string
-	MaxSubject         int
-	MaxDescAfterTicket int
-	Scopes             []string // history vocabulary; empty means "say nothing about scopes"
+	Ticket                string // "" when the branch carries none — never invent one
+	Branch                string
+	Detached              bool
+	Files                 []string
+	Diff                  string
+	DiffTruncated         bool
+	Types                 []string
+	MaxSubject            int
+	MaxDescAfterTicket    int
+	TargetSubject         int
+	TargetDescAfterTicket int
+	Scopes                []string // history vocabulary; empty means "say nothing about scopes"
 	// ScopeMode is typed here but reaches a preset template as a bare string:
 	// `{{if eq .ScopeMode "off"}}` in a user-authored .md has no compiler behind
 	// it, and cannot have one.
