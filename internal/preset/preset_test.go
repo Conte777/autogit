@@ -1,9 +1,12 @@
 package preset_test
 
 import (
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/Conte777/autogit/internal/preset"
 	"github.com/Conte777/autogit/internal/prompt"
@@ -158,6 +161,30 @@ func TestTicketPromptBudgetsTheDescription(t *testing.T) {
 	}
 }
 
+var exampleRe = regexp.MustCompile(`fits, (\d+) characters:\s+(.+)`)
+
+func TestCommitPromptExamplesAreAsLongAsTheyClaim(t *testing.T) {
+	for _, name := range preset.Names() {
+		p, _ := preset.Builtin(name)
+		commit, _ := p.CommitPrompt()
+		for _, data := range []prompt.CommitData{
+			{MaxSubject: p.Commit.MaxSubject, ScopeMode: validate.ScopeSuggest},
+			{Ticket: "CUS-2023", MaxSubject: p.Commit.MaxSubject, MaxDescAfterTicket: p.Commit.MaxSubject - 10, ScopeMode: validate.ScopeSuggest},
+		} {
+			system, _, err := commit.Render(data)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, m := range exampleRe.FindAllStringSubmatch(system, -1) {
+				want, _ := strconv.Atoi(m[1])
+				if got := utf8.RuneCountInString(strings.TrimSpace(m[2])); got != want {
+					t.Errorf("%s: example %q is %d characters, the prompt claims %d", name, m[2], got, want)
+				}
+			}
+		}
+	}
+}
+
 func TestTicketPromptWithoutTicketMakesRefactoringFeat(t *testing.T) {
 	p, _ := preset.Builtin("ticket")
 	commit, _ := p.CommitPrompt()
@@ -181,7 +208,7 @@ func TestCommitPromptsKeepIdentifierCaseAndShowAnExample(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if strings.Contains(system, "lowercase English") || !strings.Contains(system, "Code identifiers keep their") {
+		if strings.Contains(system, "lowercase English") || !strings.Contains(system, "Code identifiers after it keep") {
 			t.Errorf("%s: system prompt still asks for an all-lowercase description:\n%s", name, system)
 		}
 		if !strings.Contains(system, "A subject that fits") {

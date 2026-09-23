@@ -140,9 +140,11 @@ func (r CommitRules) Check(raw string) (string, []string) {
 	if r.NoTrailingPeriod && strings.HasSuffix(c.Subject, ".") {
 		problems = append(problems, "subject must not end with a period")
 	}
-	if first, _ := utf8.DecodeRuneInString(c.Desc); r.LowercaseDesc && unicode.IsUpper(first) {
-		problems = append(problems,
-			"description must start with a lowercase letter; code identifiers later in it keep their case")
+	if r.LowercaseDesc {
+		if first, _ := utf8.DecodeRuneInString(c.Desc); unicode.IsUpper(first) {
+			problems = append(problems,
+				"description must not start with a capital letter; code identifiers later in it keep their case")
+		}
 	}
 	if r.BranchSlug != "" && strings.EqualFold(c.Desc, r.BranchSlug) {
 		problems = append(problems, "description is copied from the branch name; describe the diff instead")

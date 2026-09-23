@@ -201,7 +201,7 @@ func TestSubjectTooLongSaysHowMuchToCut(t *testing.T) {
 
 func TestLowercaseProblemSparesIdentifiers(t *testing.T) {
 	_, problems := ticketRules("x").Check("feat: Add thing")
-	want := "description must start with a lowercase letter; code identifiers later in it keep their case"
+	want := "description must not start with a capital letter; code identifiers later in it keep their case"
 	if !slices.Contains(problems, want) {
 		t.Errorf("problems = %v, want %q", problems, want)
 	}

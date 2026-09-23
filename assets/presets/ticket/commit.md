@@ -19,9 +19,9 @@ Format: `<prefix>: <description>`
 - `{{.Ticket}}: ` is fixed, so the description gets at most {{.MaxDescAfterTicket}} characters.
 {{- end}}
 - One line. No body, no footers.
-- The description is English, starts with a lowercase letter and does not end
-  with a period. Code identifiers keep their case: `add ShutdownWithContext`,
-  not `add shutdownwithcontext`.
+- The description is English, starts with a lowercase verb and does not end
+  with a period. Code identifiers after it keep their case:
+  `add ShutdownWithContext`, not `add shutdownwithcontext`.
 - Imperative verbs: add, fix, update, remove, refactor.
 - Describe the behaviour, config or API that actually changed in the diff.
   Do not copy the branch name.
