@@ -32,12 +32,13 @@ func BranchSlugText(branch string) string {
 }
 
 // ExtractTicket returns the first substring of branch matching pattern,
-// upper-cased, or "" when there is none.
+// upper-cased, or "" when there is none. The pattern is taken as written: it
+// alone decides the case it accepts and where in the name a ticket may stand.
 func ExtractTicket(branch, pattern string) string {
 	if pattern == "" {
 		return ""
 	}
-	re, err := regexp.Compile("(?i)" + pattern)
+	re, err := regexp.Compile(pattern)
 	if err != nil {
 		return ""
 	}

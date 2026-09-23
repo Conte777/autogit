@@ -220,6 +220,9 @@ A preset is a pair of prompts plus the rules that check what comes back.
   vocabulary; below 10 conventional commits nothing is offered at all, because
   two examples teach worse than none. A body is requested only above a size
   threshold. `Refs:` appears only when the branch name carries a ticket.
+  `ticketPattern` is applied as written: the defaults find an upper-case key
+  only at the start of the name (`ABC-123/slug`); drop the `^` to search the
+  whole name, add `(?i)` to accept lower case.
 - **`ticket`** — `CUS-1234|feat|fix: description`, 50 characters, one line,
   with an abbreviation glossary.
 

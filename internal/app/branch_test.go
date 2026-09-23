@@ -173,6 +173,23 @@ func TestBranchNameCollision(t *testing.T) {
 	}
 }
 
+func TestBranchUppercasesANamedTicket(t *testing.T) {
+	e := newEnv(t, "add-user-auth")
+	e.cfg.Preset = "ticket"
+	e.commitFile("a.txt", "one\n", "init")
+
+	got, err := e.app().Branch(context.Background(), app.BranchRequest{
+		Ticket:      "cus-1",
+		Description: "add user auth",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != "CUS-1/add-user-auth" {
+		t.Errorf("Name = %q, want CUS-1/add-user-auth", got.Name)
+	}
+}
+
 func TestBranchRejectsAMalformedTicket(t *testing.T) {
 	e := newEnv(t, "add-user-auth")
 	e.cfg.Preset = "ticket"
@@ -257,10 +274,16 @@ func TestParseBranchArgs(t *testing.T) {
 			want: app.BranchRequest{Ticket: "AG-12", Description: "fix login"},
 		},
 		{
-			name: "a lowercase ticket is uppercased",
-			args: []string{"cus-9"},
+			name: "a lowercase ticket is description text under a case-sensitive pattern",
+			args: []string{"cus-9", "fix"},
 			a:    ticket,
-			want: app.BranchRequest{Ticket: "CUS-9"},
+			want: app.BranchRequest{Description: "cus-9 fix"},
+		},
+		{
+			name: "an acronym with a number is description text",
+			args: []string{"utf-8", "support"},
+			a:    conventional,
+			want: app.BranchRequest{Description: "utf-8 support"},
 		},
 		{
 			name: "a ticket from another preset is description text",

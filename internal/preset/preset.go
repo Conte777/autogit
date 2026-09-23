@@ -33,7 +33,7 @@ func (p Preset) Name() string { return p.name }
 type CommitFormat struct {
 	Prompt           string      `json:"prompt,omitempty" jsonschema:"path to a prompt file; relative paths resolve against the config file that declares them, and a repository config may only name a file inside the repository"`
 	Types            []string    `json:"types,omitempty" jsonschema:"allowed subject types"`
-	TicketPattern    string      `json:"ticketPattern,omitempty" jsonschema:"regexp matching a ticket id in the branch name"`
+	TicketPattern    string      `json:"ticketPattern,omitempty" jsonschema:"regexp finding a ticket id in the branch name, applied as written: case-sensitive unless it carries (?i), anywhere in the name unless anchored with ^; it must also match a bare ticket id"`
 	MaxSubject       int         `json:"maxSubject,omitempty" jsonschema:"subject length limit in characters"`
 	LowercaseDesc    bool        `json:"lowercaseDesc" jsonschema:"the description must not start with a capital letter; code identifiers later in it keep their case"`
 	NoTrailingPeriod bool        `json:"noTrailingPeriod"`
@@ -116,7 +116,7 @@ var builtin = map[string]Preset{
 				"feat", "fix", "docs", "style", "refactor",
 				"perf", "test", "build", "ci", "chore", "revert",
 			},
-			TicketPattern:    `[A-Z][A-Z0-9]+-[0-9]+`,
+			TicketPattern:    `^[A-Z][A-Z0-9]+-[0-9]+`,
 			MaxSubject:       72,
 			LowercaseDesc:    true,
 			NoTrailingPeriod: true,
@@ -127,7 +127,7 @@ var builtin = map[string]Preset{
 		},
 		Branch: BranchFormat{
 			Types:         []string{"feat", "fix"},
-			TicketPattern: `[A-Z][A-Z0-9]+-[0-9]+`,
+			TicketPattern: `^[A-Z][A-Z0-9]+-[0-9]+`,
 			MaxSlugLen:    40,
 			Name:          "{{.Prefix}}/{{.Slug}}",
 		},
@@ -135,7 +135,7 @@ var builtin = map[string]Preset{
 	"ticket": {
 		Commit: CommitFormat{
 			Types:            []string{"feat", "fix"},
-			TicketPattern:    `CUS-[0-9]+`,
+			TicketPattern:    `^CUS-[0-9]+`,
 			MaxSubject:       50,
 			LowercaseDesc:    true,
 			NoTrailingPeriod: true,
@@ -145,7 +145,7 @@ var builtin = map[string]Preset{
 		},
 		Branch: BranchFormat{
 			Types:         []string{"feat", "fix"},
-			TicketPattern: `CUS-[0-9]+`,
+			TicketPattern: `^CUS-[0-9]+`,
 			MaxSlugLen:    40,
 			Name:          "{{.Prefix}}/{{.Slug}}",
 		},
