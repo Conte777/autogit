@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -61,8 +62,8 @@ func TestSessionTwoTurns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"--setting-sources=", "--tools", "--system-prompt", "SYSTEM PROMPT", "--model", "haiku"} {
-		if !strings.Contains(string(argv), want) {
+	for _, want := range []string{"-p", "--setting-sources=", "--tools", "--no-session-persistence", "--strict-mcp-config", "--system-prompt", "SYSTEM PROMPT", "--model", "haiku"} {
+		if !slices.Contains(strings.Split(string(argv), "\n"), want) {
 			t.Errorf("argv missing %q:\n%s", want, argv)
 		}
 	}
