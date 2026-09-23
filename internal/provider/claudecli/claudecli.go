@@ -57,7 +57,7 @@ func (p *Provider) args(system string) []string {
 		"--output-format", "stream-json",
 		"--verbose",
 		// Empty value, not omitted: this is what isolates the child from
-		// CLAUDE.md, skills, commands, hooks and MCP servers.
+		// CLAUDE.md, skills, commands, hooks and file-configured MCP servers.
 		"--setting-sources=",
 		// The SDK omits this flag when the tool list is empty, which silently
 		// leaves Bash and Read available to a message generator.
