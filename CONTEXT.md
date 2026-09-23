@@ -34,7 +34,9 @@ _Avoid_: category, kind
 
 **Ticket**:
 A prefix that identifies an issue in a tracker, recognised by a pattern rather
-than by a list.
+than by a list. The pattern alone says both what a ticket looks like and where
+in a branch name it may stand; nothing loosens it, so a branch whose name does
+not match it carries no ticket.
 _Avoid_: issue, task id, story
 
 **Scope**:

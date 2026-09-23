@@ -333,7 +333,7 @@ func (a *App) generateMessage(ctx context.Context, branch git.Branch, diff git.D
 
 	var ticket, branchSlug string
 	if !branch.Detached {
-		ticket = validate.ExtractTicket(branch.Name, format.TicketPattern)
+		ticket = ticketCase(validate.ExtractTicket(branch.Name, format.TicketPattern), format.UppercaseTicket)
 		branchSlug = validate.BranchSlugText(branch.Name)
 	}
 

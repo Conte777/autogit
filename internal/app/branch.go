@@ -34,7 +34,7 @@ func (a *App) ParseBranchArgs(args []string) BranchRequest {
 func parseBranchArgs(args []string, format preset.BranchFormat) BranchRequest {
 	if len(args) > 0 && ticketMatches(args[0], format.TicketPattern) {
 		return BranchRequest{
-			Ticket:      strings.ToUpper(args[0]),
+			Ticket:      ticketCase(args[0], format.UppercaseTicket),
 			Description: strings.Join(args[1:], " "),
 		}
 	}
@@ -45,7 +45,14 @@ func parseBranchArgs(args []string, format preset.BranchFormat) BranchRequest {
 // that declares no pattern describes nothing: there a ticket can only arrive
 // named, never guessed out of free text.
 func ticketMatches(arg, pattern string) bool {
-	return arg != "" && pattern != "" && validate.ExtractTicket(arg, pattern) == strings.ToUpper(arg)
+	return arg != "" && pattern != "" && validate.ExtractTicket(arg, pattern) == arg
+}
+
+func ticketCase(ticket string, upper bool) string {
+	if upper {
+		return strings.ToUpper(ticket)
+	}
+	return ticket
 }
 
 // BranchResult is the branch that was created.
@@ -86,7 +93,7 @@ func (a *App) nameBranch(
 	diffSource func(context.Context, git.DiffOptions) (git.Diff, error),
 ) (BranchResult, error) {
 	format := a.preset.Branch
-	ticket := strings.ToUpper(strings.TrimSpace(req.Ticket))
+	ticket := ticketCase(strings.TrimSpace(req.Ticket), format.UppercaseTicket)
 	if ticket != "" && format.TicketPattern != "" && !ticketMatches(ticket, format.TicketPattern) {
 		return BranchResult{}, fmt.Errorf("%q does not look like a ticket id for this preset", req.Ticket)
 	}
