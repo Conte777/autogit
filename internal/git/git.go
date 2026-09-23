@@ -410,8 +410,12 @@ func (r *Repo) Subjects(ctx context.Context, n int) ([]string, error) {
 	if !r.HasCommits(ctx) {
 		return nil, nil
 	}
+	return r.SubjectsFrom(ctx, "HEAD", n)
+}
+
+func (r *Repo) SubjectsFrom(ctx context.Context, rev string, n int) ([]string, error) {
 	out, err := r.run(ctx, defaultTimeout, "",
-		"log", fmt.Sprintf("-n%d", n), "--no-merges", "--format=%s")
+		"log", fmt.Sprintf("-n%d", n), "--no-merges", "--format=%s", rev, "--")
 	if err != nil {
 		return nil, err
 	}

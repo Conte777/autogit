@@ -52,6 +52,7 @@ func (p *Provider) binary() string {
 
 func (p *Provider) args(system string) []string {
 	args := []string{
+		"-p",
 		"--input-format", "stream-json",
 		"--output-format", "stream-json",
 		"--verbose",
@@ -61,6 +62,10 @@ func (p *Provider) args(system string) []string {
 		// The SDK omits this flag when the tool list is empty, which silently
 		// leaves Bash and Read available to a message generator.
 		"--tools", "",
+		// Without it every call leaves a transcript that shows up in /resume.
+		"--no-session-persistence",
+		// --setting-sources= does not reach claude.ai connectors; this does.
+		"--strict-mcp-config",
 		"--system-prompt", system,
 	}
 	if p.Model != "" {
