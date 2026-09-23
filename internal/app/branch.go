@@ -83,7 +83,7 @@ func (a *App) Branch(ctx context.Context, req BranchRequest) (BranchResult, erro
 func (a *App) nameBranch(
 	ctx context.Context,
 	req BranchRequest,
-	changes func(context.Context, git.DiffOptions) (git.Diff, error),
+	diffSource func(context.Context, git.DiffOptions) (git.Diff, error),
 ) (BranchResult, error) {
 	format := a.preset.Branch
 	ticket := strings.ToUpper(strings.TrimSpace(req.Ticket))
@@ -102,7 +102,7 @@ func (a *App) nameBranch(
 		NeedType:    ticket == "",
 	}
 	if desc == "" {
-		diff, err := changes(ctx, a.diffOptions())
+		diff, err := diffSource(ctx, a.diffOptions())
 		if err != nil {
 			return BranchResult{}, err
 		}

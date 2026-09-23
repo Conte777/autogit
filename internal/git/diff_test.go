@@ -262,6 +262,13 @@ func TestCommitDiffAgainstFirstParentLeavesTreeAlone(t *testing.T) {
 		t.Errorf("second commit diff = %v\n%s", second.Files, second.Text)
 	}
 
+	if _, err := r.CommitDiff(ctx, "nosuchrev", DiffOptions{}); err == nil {
+		t.Error("CommitDiff on an unknown rev succeeded, want an error")
+	}
+	if subjects, err := r.SubjectsFrom(ctx, "HEAD~1", 10); err != nil || len(subjects) != 1 || subjects[0] != "first" {
+		t.Errorf("SubjectsFrom(HEAD~1) = %v, %v; want [first]", subjects, err)
+	}
+
 	if after := runGit(t, dir, "status", "--porcelain"); after != statusBefore {
 		t.Errorf("status changed:\nbefore %q\nafter  %q", statusBefore, after)
 	}

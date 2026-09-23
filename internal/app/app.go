@@ -25,6 +25,7 @@ type App struct {
 	prompt ui.Prompter
 	// progress is required for the same reason; ui.Noop is the silence.
 	progress ui.Progress
+	history  func(ctx context.Context, n int) ([]string, error)
 	observe  func(candidate string, problems []string)
 }
 
@@ -48,6 +49,7 @@ func New(
 		provider: prov,
 		prompt:   prompter,
 		progress: progress,
+		history:  repo.Subjects,
 	}, nil
 }
 

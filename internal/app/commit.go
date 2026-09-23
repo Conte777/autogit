@@ -383,7 +383,7 @@ func (a *App) scopeVocabulary(ctx context.Context) (preset.ScopeVocabulary, erro
 		if depth <= 0 {
 			depth = 500
 		}
-		subjects, err := a.repo.Subjects(ctx, depth)
+		subjects, err := a.history(ctx, depth)
 		if err != nil {
 			return preset.ScopeVocabulary{}, err
 		}

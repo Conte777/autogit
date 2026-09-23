@@ -26,12 +26,24 @@ import (
 	"github.com/Conte777/autogit/internal/ui"
 )
 
+type caseKind string
+
+const (
+	commitCase caseKind = "commit"
+	branchCase caseKind = "branch"
+)
+
+const (
+	maxMergesScanned = 50
+	topProblemKinds  = 10
+)
+
 type evalCase struct {
-	Line        int    `json:"line"`
-	Kind        string `json:"kind"`
-	Repo        string `json:"repo"`
-	SHA         string `json:"sha"`
-	Description string `json:"description,omitempty"`
+	Line        int      `json:"line"`
+	Kind        caseKind `json:"kind"`
+	Repo        string   `json:"repo"`
+	SHA         string   `json:"sha"`
+	Description string   `json:"description,omitempty"`
 }
 
 type evalRejection struct {
@@ -44,23 +56,26 @@ type evalResult struct {
 	evalCase
 	Provider   string          `json:"provider,omitempty"`
 	Branch     string          `json:"branch,omitempty"`
+	BranchFrom string          `json:"branchFrom,omitempty"`
 	Attempts   int             `json:"attempts"`
 	PassAt1    bool            `json:"passAt1"`
 	Pass       bool            `json:"pass"`
 	Value      string          `json:"value,omitempty"`
 	Rejected   []evalRejection `json:"rejected,omitempty"`
 	WallMS     int64           `json:"wallMs"`
+	Error      string          `json:"error,omitempty"`
 	HarnessErr string          `json:"harnessError,omitempty"`
 }
 
 type evalSummary struct {
-	N          int            `json:"n"`
-	PassAt1    float64        `json:"passAt1Pct"`
-	PassAtN    float64        `json:"passAtNPct"`
-	MedianMS   int64          `json:"medianMs"`
-	P90MS      int64          `json:"p90Ms"`
-	Problems   map[string]int `json:"problemKinds"`
-	HarnessErr int            `json:"harnessErrors"`
+	N             int            `json:"n"`
+	PassAt1       float64        `json:"passAt1Pct"`
+	PassAtN       float64        `json:"passAtNPct"`
+	MedianMS      int64          `json:"medianMs"`
+	P90MS         int64          `json:"p90Ms"`
+	Problems      map[string]int `json:"problemKinds"`
+	Errors        int            `json:"errors"`
+	HarnessErrors int            `json:"harnessErrors"`
 }
 
 func TestEvalGeneration(t *testing.T) {
@@ -150,7 +165,7 @@ func readEvalCases(path string) ([]evalCase, error) {
 		}
 		c := evalCase{
 			Line: n,
-			Kind: strings.TrimSpace(cols[0]),
+			Kind: caseKind(strings.TrimSpace(cols[0])),
 			Repo: strings.TrimSpace(cols[1]),
 			SHA:  strings.TrimSpace(cols[2]),
 		}
@@ -158,9 +173,9 @@ func readEvalCases(path string) ([]evalCase, error) {
 			c.Description = strings.TrimSpace(cols[3])
 		}
 		switch {
-		case c.Kind != "commit" && c.Kind != "branch":
+		case c.Kind != commitCase && c.Kind != branchCase:
 			return nil, fmt.Errorf("%s:%d: kind %q is neither commit nor branch", path, n, c.Kind)
-		case c.Kind == "commit" && c.Description != "":
+		case c.Kind == commitCase && c.Description != "":
 			return nil, fmt.Errorf("%s:%d: a description belongs to a branch case only", path, n)
 		case c.Repo == "" || c.SHA == "":
 			return nil, fmt.Errorf("%s:%d: repo and sha are required", path, n)
@@ -223,6 +238,16 @@ func runEvalCase(ctx context.Context, c evalCase) evalResult {
 	if err != nil {
 		return fail(err)
 	}
+	parent, err := repo.FirstParent(ctx, sha)
+	if err != nil {
+		return fail(err)
+	}
+	a.history = func(ctx context.Context, n int) ([]string, error) {
+		if parent == "" {
+			return nil, nil
+		}
+		return repo.SubjectsFrom(ctx, parent, n)
+	}
 	attempt := 0
 	a.observe = func(candidate string, problems []string) {
 		attempt++
@@ -230,92 +255,99 @@ func runEvalCase(ctx context.Context, c evalCase) evalResult {
 			res.Rejected = append(res.Rejected, evalRejection{Attempt: attempt, Candidate: candidate, Problems: problems})
 		}
 	}
-
-	changes := func(ctx context.Context, opts git.DiffOptions) (git.Diff, error) {
+	diffSource := func(ctx context.Context, opts git.DiffOptions) (git.Diff, error) {
 		return repo.CommitDiff(ctx, sha, opts)
 	}
 
 	var value string
-	var attempts int
 	var genErr error
-	start := time.Now()
+	var start time.Time
 	switch c.Kind {
-	case "commit":
-		branch, err := branchAt(ctx, repo, sha)
+	case commitCase:
+		branch, from, err := branchAt(ctx, repo, sha)
 		if err != nil {
 			return fail(err)
 		}
-		res.Branch = branch.Name
-		diff, err := changes(ctx, a.diffOptions())
+		res.Branch, res.BranchFrom = branch.Name, from
+		start = time.Now()
+		diff, err := diffSource(ctx, a.diffOptions())
 		if err != nil {
 			return fail(err)
 		}
 		if diff.Empty() {
 			return fail(errors.New("the commit changes no files"))
 		}
-		start = time.Now()
 		var out gen.Result
 		out, genErr = a.generateMessage(ctx, branch, diff)
-		value, attempts = out.Value, out.Attempts
-	case "branch":
+		value = out.Value
+	case branchCase:
+		start = time.Now()
 		var out BranchResult
-		out, genErr = a.nameBranch(ctx, a.ParseBranchArgs(strings.Fields(c.Description)), changes)
-		value, attempts = out.Name, out.Attempts
+		out, genErr = a.nameBranch(ctx, a.ParseBranchArgs(strings.Fields(c.Description)), diffSource)
+		value = out.Name
 	}
 	res.WallMS = time.Since(start).Milliseconds()
+	res.Attempts = attempt
 
 	var failure *gen.FailureError
 	switch {
 	case genErr == nil:
-		res.Pass, res.Value, res.Attempts = true, value, attempts
-		res.PassAt1 = attempts == 1
+		res.Pass, res.Value = true, value
+		res.PassAt1 = attempt == 1
 	case errors.As(genErr, &failure):
-		res.Value, res.Attempts = failure.Last, failure.Attempts
+		res.Value = failure.Last
 	default:
-		res.Attempts = attempt
-		return fail(genErr)
+		res.Error = genErr.Error()
 	}
 	return res
 }
 
 var mergeSubject = regexp.MustCompile(`^Merge (?:pull request #\d+ from [^/\s]+/(\S+)|(?:remote-tracking )?branch '([^']+)')`)
 
-func branchAt(ctx context.Context, repo *git.Repo, sha string) (git.Branch, error) {
+func branchAt(ctx context.Context, repo *git.Repo, sha string) (git.Branch, string, error) {
 	merges, err := gitOutput(ctx, repo.Root(), "rev-list", "--merges", "--ancestry-path", "--reverse", sha+"..HEAD")
 	if err != nil {
-		return git.Branch{}, err
+		return git.Branch{}, "", err
 	}
 	for i, m := range strings.Fields(merges) {
-		if i >= 50 {
+		if i >= maxMergesScanned {
 			break
 		}
-		if isAncestor(ctx, repo.Root(), sha, m+"^1") {
+		onMainline, ancestryErr := isAncestor(ctx, repo.Root(), sha, m+"^1")
+		if ancestryErr != nil {
+			return git.Branch{}, "", ancestryErr
+		}
+		if onMainline {
 			continue
 		}
-		subject, err := gitOutput(ctx, repo.Root(), "log", "-1", "--format=%s", m)
-		if err != nil {
-			return git.Branch{}, err
+		subject, subjectErr := gitOutput(ctx, repo.Root(), "log", "-1", "--format=%s", m)
+		if subjectErr != nil {
+			return git.Branch{}, "", subjectErr
 		}
 		if match := mergeSubject.FindStringSubmatch(subject); match != nil {
-			name := match[1] + match[2]
-			name = strings.TrimPrefix(name, "origin/")
-			return git.Branch{Name: name}, nil
+			return git.Branch{Name: strings.TrimPrefix(match[1]+match[2], "origin/")}, "merge", nil
 		}
 		break
 	}
-	return repo.Current(ctx)
+	branch, err := repo.Current(ctx)
+	return branch, "checkout", err
 }
 
-func isAncestor(ctx context.Context, dir, ancestor, rev string) bool {
-	cmd := exec.CommandContext(ctx, "git", "-C", dir, "merge-base", "--is-ancestor", ancestor, rev)
-	cmd.Env = append(os.Environ(), "LC_ALL=C", "GIT_OPTIONAL_LOCKS=0")
-	return cmd.Run() == nil
+func isAncestor(ctx context.Context, dir, ancestor, rev string) (bool, error) {
+	err := gitCommand(ctx, dir, "merge-base", "--is-ancestor", ancestor, rev).Run()
+	var exitErr *exec.ExitError
+	switch {
+	case err == nil:
+		return true, nil
+	case errors.As(err, &exitErr) && exitErr.ExitCode() == 1:
+		return false, nil
+	default:
+		return false, fmt.Errorf("git merge-base --is-ancestor %s %s: %w", ancestor, rev, err)
+	}
 }
 
 func gitOutput(ctx context.Context, dir string, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...)
-	cmd.Env = append(os.Environ(), "LC_ALL=C", "GIT_OPTIONAL_LOCKS=0")
-	out, err := cmd.Output()
+	out, err := gitCommand(ctx, dir, args...).Output()
 	if err != nil {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) && len(exitErr.Stderr) > 0 {
@@ -324,6 +356,12 @@ func gitOutput(ctx context.Context, dir string, args ...string) (string, error) 
 		return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
 	}
 	return strings.TrimSpace(string(out)), nil
+}
+
+func gitCommand(ctx context.Context, dir string, args ...string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...)
+	cmd.Env = append(os.Environ(), "LC_ALL=C", "GIT_OPTIONAL_LOCKS=0")
+	return cmd
 }
 
 var (
@@ -345,10 +383,13 @@ func summarize(results []evalResult) evalSummary {
 	var pass1, pass int
 	for _, r := range results {
 		if r.HarnessErr != "" {
-			sum.HarnessErr++
+			sum.HarnessErrors++
 			continue
 		}
 		sum.N++
+		if r.Error != "" {
+			sum.Errors++
+		}
 		times = append(times, r.WallMS)
 		if r.PassAt1 {
 			pass1++
@@ -385,8 +426,11 @@ func logEvalResult(t *testing.T, r evalResult) {
 		return
 	}
 	verdict := "FAIL"
-	if r.Pass {
+	switch {
+	case r.Pass:
 		verdict = "pass"
+	case r.Error != "":
+		verdict = "ERROR " + r.Error
 	}
 	t.Logf("%s: %s attempts=%d %s %q", head, verdict, r.Attempts, time.Duration(r.WallMS)*time.Millisecond, firstLine(r.Value))
 	for _, rej := range r.Rejected {
@@ -396,9 +440,10 @@ func logEvalResult(t *testing.T, r evalResult) {
 
 func logSummary(t *testing.T, sum evalSummary) {
 	t.Helper()
-	t.Logf("n=%d pass@1=%.1f%% pass@N=%.1f%% median=%s p90=%s harness errors=%d",
+	t.Logf("n=%d pass@1=%.1f%% pass@N=%.1f%% median=%s p90=%s errors=%d harness errors=%d",
 		sum.N, sum.PassAt1, sum.PassAtN,
-		time.Duration(sum.MedianMS)*time.Millisecond, time.Duration(sum.P90MS)*time.Millisecond, sum.HarnessErr)
+		time.Duration(sum.MedianMS)*time.Millisecond, time.Duration(sum.P90MS)*time.Millisecond,
+		sum.Errors, sum.HarnessErrors)
 	kinds := make([]string, 0, len(sum.Problems))
 	for k := range sum.Problems {
 		kinds = append(kinds, k)
@@ -410,7 +455,7 @@ func logSummary(t *testing.T, sum evalSummary) {
 		return kinds[i] < kinds[j]
 	})
 	for i, k := range kinds {
-		if i == 10 {
+		if i == topProblemKinds {
 			break
 		}
 		t.Logf("    %4d  %s", sum.Problems[k], k)
