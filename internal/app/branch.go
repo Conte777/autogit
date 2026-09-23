@@ -10,6 +10,7 @@ import (
 	"text/template"
 
 	"github.com/Conte777/autogit/internal/gen"
+	"github.com/Conte777/autogit/internal/git"
 	"github.com/Conte777/autogit/internal/preset"
 	"github.com/Conte777/autogit/internal/prompt"
 	"github.com/Conte777/autogit/internal/validate"
@@ -66,6 +67,24 @@ func (a *App) Branch(ctx context.Context, req BranchRequest) (BranchResult, erro
 		return BranchResult{}, blocked
 	}
 
+	named, err := a.nameBranch(ctx, req, a.repo.WorktreeDiff)
+	if err != nil {
+		return BranchResult{}, err
+	}
+	if a.repo.BranchExists(ctx, named.Name) {
+		return BranchResult{}, fmt.Errorf("branch %q already exists", named.Name)
+	}
+	if err := a.repo.CreateBranch(ctx, named.Name); err != nil {
+		return BranchResult{}, err
+	}
+	return named, nil
+}
+
+func (a *App) nameBranch(
+	ctx context.Context,
+	req BranchRequest,
+	changes func(context.Context, git.DiffOptions) (git.Diff, error),
+) (BranchResult, error) {
 	format := a.preset.Branch
 	ticket := strings.ToUpper(strings.TrimSpace(req.Ticket))
 	if ticket != "" && format.TicketPattern != "" && !ticketMatches(ticket, format.TicketPattern) {
@@ -83,7 +102,7 @@ func (a *App) Branch(ctx context.Context, req BranchRequest) (BranchResult, erro
 		NeedType:    ticket == "",
 	}
 	if desc == "" {
-		diff, err := a.repo.WorktreeDiff(ctx, a.diffOptions())
+		diff, err := changes(ctx, a.diffOptions())
 		if err != nil {
 			return BranchResult{}, err
 		}
@@ -107,12 +126,6 @@ func (a *App) Branch(ctx context.Context, req BranchRequest) (BranchResult, erro
 
 	name, err := renderBranchName(format.Name, prefix, typ, ticket, slug)
 	if err != nil {
-		return BranchResult{}, err
-	}
-	if a.repo.BranchExists(ctx, name) {
-		return BranchResult{}, fmt.Errorf("branch %q already exists", name)
-	}
-	if err := a.repo.CreateBranch(ctx, name); err != nil {
 		return BranchResult{}, err
 	}
 	return BranchResult{Name: name, Attempts: attempts}, nil

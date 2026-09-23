@@ -41,6 +41,14 @@ func (r *Repo) WorktreeDiff(ctx context.Context, opts DiffOptions) (Diff, error)
 	return r.diff(ctx, opts, []string{"diff", base})
 }
 
+func (r *Repo) CommitDiff(ctx context.Context, rev string, opts DiffOptions) (Diff, error) {
+	base := rev + "^1"
+	if _, err := r.run(ctx, defaultTimeout, "", "rev-parse", "--verify", "--quiet", base+"^{commit}"); err != nil {
+		base = EmptyTree
+	}
+	return r.diff(ctx, opts, []string{"diff", base, rev})
+}
+
 const diffReadBudgets = 8
 
 func (r *Repo) diff(ctx context.Context, opts DiffOptions, base []string) (Diff, error) {

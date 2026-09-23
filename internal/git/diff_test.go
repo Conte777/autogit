@@ -230,3 +230,39 @@ func TestStagedDiffKeepsSmallBodiesReadBeforeTheBound(t *testing.T) {
 	}
 	assertWholeSections(t, d.Text)
 }
+
+func TestCommitDiffAgainstFirstParentLeavesTreeAlone(t *testing.T) {
+	ctx := context.Background()
+	dir := newRepo(t)
+	write(t, dir, "a.txt", "one\n")
+	runGit(t, dir, "add", ".")
+	runGit(t, dir, "commit", "-m", "first")
+	write(t, dir, "b.txt", "two\n")
+	runGit(t, dir, "add", ".")
+	runGit(t, dir, "commit", "-m", "second")
+	write(t, dir, "a.txt", "dirty\n")
+	write(t, dir, "c.txt", "staged\n")
+	runGit(t, dir, "add", "c.txt")
+	statusBefore := runGit(t, dir, "status", "--porcelain")
+	r := open(t, dir)
+
+	root, err := r.CommitDiff(ctx, "HEAD~1", DiffOptions{MaxBytes: 40000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(root.Files) != 1 || root.Files[0] != "a.txt" || !strings.Contains(root.Text, "+one") {
+		t.Errorf("root commit diff = %v\n%s", root.Files, root.Text)
+	}
+
+	second, err := r.CommitDiff(ctx, "HEAD", DiffOptions{MaxBytes: 40000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(second.Files) != 1 || second.Files[0] != "b.txt" || !strings.Contains(second.Text, "+two") {
+		t.Errorf("second commit diff = %v\n%s", second.Files, second.Text)
+	}
+
+	if after := runGit(t, dir, "status", "--porcelain"); after != statusBefore {
+		t.Errorf("status changed:\nbefore %q\nafter  %q", statusBefore, after)
+	}
+}
