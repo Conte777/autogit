@@ -330,6 +330,22 @@ func TestCommitFindsNoTicketInAVersionNumber(t *testing.T) {
 	}
 }
 
+func TestCommitKeepsTheTicketsCaseWhenAsked(t *testing.T) {
+	e := newEnv(t, "feat: add the second file")
+	e.repoConfig(`{"presets": {"conventional": {"commit": {"ticketPattern": "^proj-[0-9]+", "uppercaseTicket": false}}}}`)
+	e.commitFile("a.txt", "one\n", "init")
+	e.git("switch", "-c", "proj-1/add-thing")
+	e.write("b.txt", "two\n")
+	e.git("add", ".")
+
+	if _, err := e.app().Commit(context.Background(), app.CommitRequest{Stage: app.StageStaged}); err != nil {
+		t.Fatal(err)
+	}
+	if prompt := e.prov.SessionTurns(0)[0]; !strings.Contains(prompt, "Ticket: proj-1") {
+		t.Errorf("the ticket did not keep its case:\n%s", prompt)
+	}
+}
+
 func TestTicketPromptStatesTheDescriptionBudget(t *testing.T) {
 	e := newEnv(t, "CUS-2023: add the second file")
 	e.cfg.Preset = "ticket"

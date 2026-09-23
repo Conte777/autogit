@@ -34,6 +34,7 @@ type CommitFormat struct {
 	Prompt           string      `json:"prompt,omitempty" jsonschema:"path to a prompt file; relative paths resolve against the config file that declares them, and a repository config may only name a file inside the repository"`
 	Types            []string    `json:"types,omitempty" jsonschema:"allowed subject types"`
 	TicketPattern    string      `json:"ticketPattern,omitempty" jsonschema:"regexp finding a ticket id in the branch name, applied as written: case-sensitive unless it carries (?i), anywhere in the name unless anchored with ^; it must also match a bare ticket id"`
+	UppercaseTicket  bool        `json:"uppercaseTicket" jsonschema:"upper-case the ticket found in the branch name; the pattern must then accept the upper-cased id"`
 	MaxSubject       int         `json:"maxSubject,omitempty" jsonschema:"subject length limit in characters"`
 	LowercaseDesc    bool        `json:"lowercaseDesc" jsonschema:"the description must not start with a capital letter; code identifiers later in it keep their case"`
 	NoTrailingPeriod bool        `json:"noTrailingPeriod"`
@@ -99,11 +100,12 @@ func (s ScopePolicy) Resolve(mined []string) ScopeVocabulary {
 
 // BranchFormat describes the branch prompt and the name that comes out of it.
 type BranchFormat struct {
-	Prompt        string   `json:"prompt,omitempty"`
-	Types         []string `json:"types,omitempty"`
-	TicketPattern string   `json:"ticketPattern,omitempty"`
-	MaxSlugLen    int      `json:"maxSlugLen,omitempty" jsonschema:"branch slug length limit in characters"`
-	Name          string   `json:"name,omitempty" jsonschema:"branch name template over .Prefix, .Type, .Ticket and .Slug"`
+	Prompt          string   `json:"prompt,omitempty"`
+	Types           []string `json:"types,omitempty"`
+	TicketPattern   string   `json:"ticketPattern,omitempty"`
+	UppercaseTicket bool     `json:"uppercaseTicket" jsonschema:"upper-case a ticket, whether named or given as the leading argument; the pattern must then accept the upper-cased id"`
+	MaxSlugLen      int      `json:"maxSlugLen,omitempty" jsonschema:"branch slug length limit in characters"`
+	Name            string   `json:"name,omitempty" jsonschema:"branch name template over .Prefix, .Type, .Ticket and .Slug"`
 }
 
 // Names lists the built-in presets.
@@ -117,6 +119,7 @@ var builtin = map[string]Preset{
 				"perf", "test", "build", "ci", "chore", "revert",
 			},
 			TicketPattern:    `^[A-Z][A-Z0-9]+-[0-9]+`,
+			UppercaseTicket:  true,
 			MaxSubject:       72,
 			LowercaseDesc:    true,
 			NoTrailingPeriod: true,
@@ -126,16 +129,18 @@ var builtin = map[string]Preset{
 			Scope:            ScopePolicy{Mode: validate.ScopeSuggest, Top: 20, MinConventional: 10, HistoryDepth: 500},
 		},
 		Branch: BranchFormat{
-			Types:         []string{"feat", "fix"},
-			TicketPattern: `^[A-Z][A-Z0-9]+-[0-9]+`,
-			MaxSlugLen:    40,
-			Name:          "{{.Prefix}}/{{.Slug}}",
+			Types:           []string{"feat", "fix"},
+			TicketPattern:   `^[A-Z][A-Z0-9]+-[0-9]+`,
+			UppercaseTicket: true,
+			MaxSlugLen:      40,
+			Name:            "{{.Prefix}}/{{.Slug}}",
 		},
 	},
 	"ticket": {
 		Commit: CommitFormat{
 			Types:            []string{"feat", "fix"},
 			TicketPattern:    `^CUS-[0-9]+`,
+			UppercaseTicket:  true,
 			MaxSubject:       50,
 			LowercaseDesc:    true,
 			NoTrailingPeriod: true,
@@ -144,10 +149,11 @@ var builtin = map[string]Preset{
 			Scope:            ScopePolicy{Mode: validate.ScopeOff},
 		},
 		Branch: BranchFormat{
-			Types:         []string{"feat", "fix"},
-			TicketPattern: `^CUS-[0-9]+`,
-			MaxSlugLen:    40,
-			Name:          "{{.Prefix}}/{{.Slug}}",
+			Types:           []string{"feat", "fix"},
+			TicketPattern:   `^CUS-[0-9]+`,
+			UppercaseTicket: true,
+			MaxSlugLen:      40,
+			Name:            "{{.Prefix}}/{{.Slug}}",
 		},
 	},
 }

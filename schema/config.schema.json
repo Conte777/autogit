@@ -189,6 +189,10 @@
                 "type": "string",
                 "description": "regexp finding a ticket id in the branch name, applied as written: case-sensitive unless it carries (?i), anywhere in the name unless anchored with ^; it must also match a bare ticket id"
               },
+              "uppercaseTicket": {
+                "type": "boolean",
+                "description": "upper-case the ticket found in the branch name; the pattern must then accept the upper-cased id"
+              },
               "maxSubject": {
                 "type": "integer",
                 "description": "subject length limit in characters"
@@ -277,6 +281,10 @@
               },
               "ticketPattern": {
                 "type": "string"
+              },
+              "uppercaseTicket": {
+                "type": "boolean",
+                "description": "upper-case a ticket, whether named or given as the leading argument; the pattern must then accept the upper-cased id"
               },
               "maxSlugLen": {
                 "type": "integer",
@@ -489,6 +497,10 @@
                       "type": "string",
                       "description": "regexp finding a ticket id in the branch name, applied as written: case-sensitive unless it carries (?i), anywhere in the name unless anchored with ^; it must also match a bare ticket id"
                     },
+                    "uppercaseTicket": {
+                      "type": "boolean",
+                      "description": "upper-case the ticket found in the branch name; the pattern must then accept the upper-cased id"
+                    },
                     "maxSubject": {
                       "type": "integer",
                       "description": "subject length limit in characters"
@@ -577,6 +589,10 @@
                     },
                     "ticketPattern": {
                       "type": "string"
+                    },
+                    "uppercaseTicket": {
+                      "type": "boolean",
+                      "description": "upper-case a ticket, whether named or given as the leading argument; the pattern must then accept the upper-cased id"
                     },
                     "maxSlugLen": {
                       "type": "integer",

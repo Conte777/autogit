@@ -190,6 +190,23 @@ func TestBranchUppercasesANamedTicket(t *testing.T) {
 	}
 }
 
+func TestBranchKeepsANamedTicketsCaseWhenAsked(t *testing.T) {
+	e := newEnv(t, "add-user-auth")
+	e.repoConfig(`{"presets": {"conventional": {"branch": {"ticketPattern": "^proj-[0-9]+", "uppercaseTicket": false}}}}`)
+	e.commitFile("a.txt", "one\n", "init")
+
+	got, err := e.app().Branch(context.Background(), app.BranchRequest{
+		Ticket:      "proj-1",
+		Description: "add user auth",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != "proj-1/add-user-auth" {
+		t.Errorf("Name = %q, want proj-1/add-user-auth", got.Name)
+	}
+}
+
 func TestBranchRejectsAMalformedTicket(t *testing.T) {
 	e := newEnv(t, "add-user-auth")
 	e.cfg.Preset = "ticket"
@@ -255,6 +272,10 @@ func TestParseBranchArgs(t *testing.T) {
 	np.repoConfig(`{"presets": {"conventional": {"branch": {"ticketPattern": ""}}}}`)
 	patternless := np.app()
 
+	lc := newEnv(t)
+	lc.repoConfig(`{"presets": {"conventional": {"branch": {"ticketPattern": "^proj-[0-9]+", "uppercaseTicket": false}}}}`)
+	lowercase := lc.app()
+
 	tests := []struct {
 		name string
 		args []string
@@ -278,6 +299,12 @@ func TestParseBranchArgs(t *testing.T) {
 			args: []string{"cus-9", "fix"},
 			a:    ticket,
 			want: app.BranchRequest{Description: "cus-9 fix"},
+		},
+		{
+			name: "a ticket keeps its case when the preset does not upper-case it",
+			args: []string{"proj-1", "fix"},
+			a:    lowercase,
+			want: app.BranchRequest{Ticket: "proj-1", Description: "fix"},
 		},
 		{
 			name: "an acronym with a number is description text",
