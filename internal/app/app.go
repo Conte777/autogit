@@ -25,6 +25,8 @@ type App struct {
 	prompt ui.Prompter
 	// progress is required for the same reason; ui.Noop is the silence.
 	progress ui.Progress
+	history  func(ctx context.Context, n int) ([]string, error)
+	observe  func(candidate string, problems []string)
 }
 
 // New assembles an App. The preset is resolved here, so a broken one is a
@@ -47,6 +49,7 @@ func New(
 		provider: prov,
 		prompt:   prompter,
 		progress: progress,
+		history:  repo.Subjects,
 	}, nil
 }
 
@@ -84,6 +87,9 @@ func (a *App) generate(ctx context.Context, req gen.Request) (gen.Result, error)
 		defer cancel()
 	}
 	req.Attempts = a.cfg.Attempts
+	if a.observe != nil {
+		req.Validator = observedValidator{req.Validator, a.observe}
+	}
 
 	result, err := gen.Generate(ctx, a.provider, req)
 	// "context deadline exceeded" alone names neither the budget that ran out
@@ -95,4 +101,15 @@ func (a *App) generate(ctx context.Context, req gen.Request) (gen.Result, error)
 		return result, fmt.Errorf("%w (%s budget; raise \"timeout\" in the config)", err, timeout)
 	}
 	return result, err
+}
+
+type observedValidator struct {
+	gen.Validator
+	observe func(candidate string, problems []string)
+}
+
+func (v observedValidator) Check(raw string) (string, []string) {
+	value, problems := v.Validator.Check(raw)
+	v.observe(value, problems)
+	return value, problems
 }

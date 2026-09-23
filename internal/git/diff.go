@@ -41,6 +41,29 @@ func (r *Repo) WorktreeDiff(ctx context.Context, opts DiffOptions) (Diff, error)
 	return r.diff(ctx, opts, []string{"diff", base})
 }
 
+func (r *Repo) CommitDiff(ctx context.Context, rev string, opts DiffOptions) (Diff, error) {
+	parent, err := r.FirstParent(ctx, rev)
+	if err != nil {
+		return Diff{}, err
+	}
+	if parent == "" {
+		parent = EmptyTree
+	}
+	return r.diff(ctx, opts, []string{"diff", parent, rev})
+}
+
+func (r *Repo) FirstParent(ctx context.Context, rev string) (string, error) {
+	out, err := r.run(ctx, defaultTimeout, "", "rev-list", "--parents", "-n1", rev+"^{commit}", "--")
+	if err != nil {
+		return "", err
+	}
+	ids := strings.Fields(out)
+	if len(ids) < 2 {
+		return "", nil
+	}
+	return ids[1], nil
+}
+
 const diffReadBudgets = 8
 
 func (r *Repo) diff(ctx context.Context, opts DiffOptions, base []string) (Diff, error) {

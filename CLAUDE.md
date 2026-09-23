@@ -9,6 +9,7 @@ go test ./...                  # CI runs it with -race
 golangci-lint run              # v2 config, gofumpt as the formatter
 go run ./cmd/autogit schema | diff -u schema/config.schema.json -
 claude plugin validate ./plugins/autogit && claude plugin validate .   # plugin + marketplace manifests
+AUTOGIT_EVAL_CASES=cases.tsv go test -tags eval -run Eval -v ./internal/app/   # manual only: live-model eval, cases file stays out of the repo
 ```
 
 `lefthook install` wires the local gates: gofumpt + `go vet` + `golangci-lint --fast-only` + gitleaks on commit, `go test ./...` and a `go mod tidy` cleanliness check on push. Requires `brew install lefthook gitleaks`.
