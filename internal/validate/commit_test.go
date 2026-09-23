@@ -1,6 +1,7 @@
 package validate
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -138,6 +139,10 @@ func TestCommitRulesTicket(t *testing.T) {
 		{name: "plain feat", msg: "feat: add telegram notifier", branchSlug: "x", ok: true},
 		{name: "ticket prefix", msg: "CUS-1234: add telegram notifier config", branchSlug: "foo", ok: true},
 		{name: "capitalised type and desc", msg: "Feat: Add Thing", branchSlug: "x"},
+		{name: "capitalised first letter", msg: "feat: Add thing", branchSlug: "x"},
+		{name: "identifier keeps its case", msg: "feat: add ShutdownWithContext", branchSlug: "x", ok: true},
+		{name: "mixed-case word keeps its case", msg: "fix: drop the iOS fallback", branchSlug: "x", ok: true},
+		{name: "identifier leading the desc", msg: "fix: ShutdownWithContext leaks", branchSlug: "x"},
 		{name: "trailing period", msg: "feat: add thing.", branchSlug: "x"},
 		{name: "type outside the format", msg: "chore: whatever", branchSlug: "x"},
 		{name: "too long", msg: "feat: " + strings.Repeat("x", 60), branchSlug: "x"},
@@ -182,6 +187,23 @@ func TestCommitRulesConventional(t *testing.T) {
 				t.Errorf("Check(%q) problems = %v, want ok=%v", tt.msg, problems, tt.ok)
 			}
 		})
+	}
+}
+
+func TestSubjectTooLongSaysHowMuchToCut(t *testing.T) {
+	msg := "CUS-2023: add retry & exponential backoff to webhook sender"
+	_, problems := ticketRules("x").Check(msg)
+	want := "subject is 59 characters, the limit is 50: shorten it by at least 9 characters"
+	if !slices.Contains(problems, want) {
+		t.Errorf("Check(%q) = %v, want %q", msg, problems, want)
+	}
+}
+
+func TestLowercaseProblemSparesIdentifiers(t *testing.T) {
+	_, problems := ticketRules("x").Check("feat: Add thing")
+	want := "description must not start with a capital letter; code identifiers later in it keep their case"
+	if !slices.Contains(problems, want) {
+		t.Errorf("problems = %v, want %q", problems, want)
 	}
 }
 

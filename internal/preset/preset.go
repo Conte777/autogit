@@ -35,7 +35,7 @@ type CommitFormat struct {
 	Types            []string    `json:"types,omitempty" jsonschema:"allowed subject types"`
 	TicketPattern    string      `json:"ticketPattern,omitempty" jsonschema:"regexp matching a ticket id in the branch name"`
 	MaxSubject       int         `json:"maxSubject,omitempty" jsonschema:"subject length limit in characters"`
-	LowercaseDesc    bool        `json:"lowercaseDesc"`
+	LowercaseDesc    bool        `json:"lowercaseDesc" jsonschema:"the description must not start with a capital letter; code identifiers later in it keep their case"`
 	NoTrailingPeriod bool        `json:"noTrailingPeriod"`
 	MaxBodyLine      int         `json:"maxBodyLine,omitempty" jsonschema:"body wrap width; 0 means no limit"`
 	Footers          bool        `json:"footers"`

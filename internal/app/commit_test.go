@@ -315,6 +315,29 @@ func TestCommitOnDetachedHeadSkipsTicketExtraction(t *testing.T) {
 	}
 }
 
+func TestTicketPromptStatesTheDescriptionBudget(t *testing.T) {
+	e := newEnv(t, "CUS-2023: add the second file")
+	e.cfg.Preset = "ticket"
+	e.commitFile("a.txt", "one\n", "init")
+	e.git("switch", "-c", "CUS-2023/add-thing")
+	e.write("b.txt", "two\n")
+	e.git("add", ".")
+
+	if _, err := e.app().Commit(context.Background(), app.CommitRequest{Stage: app.StageStaged, Preview: true}); err != nil {
+		t.Fatal(err)
+	}
+	system := systemPromptOf(t, e.prov)
+	if !strings.Contains(system, "aim for a description of 30 characters or\n  fewer; above 40 it is rejected") {
+		t.Errorf("system prompt does not budget the description behind \"CUS-2023: \":\n%s", system)
+	}
+	if !strings.Contains(system, "Aim for 40 characters or fewer in total") || !strings.Contains(system, "50 is a hard limit") {
+		t.Errorf("system prompt does not separate the target from the limit:\n%s", system)
+	}
+	if user := e.prov.SessionTurns(0)[0]; !strings.HasSuffix(user, "which leaves 30 for the description after `CUS-2023: `.") {
+		t.Errorf("first turn does not end with the length target:\n%s", user)
+	}
+}
+
 // diverge builds `main` and `side` with conflicting edits to a.txt, and an
 // `extra` branch touching only c.txt, which merges into anything cleanly.
 func (e *env) diverge() {

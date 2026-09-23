@@ -80,6 +80,38 @@ func TestGenerateRecoversWithinOneSession(t *testing.T) {
 	}
 }
 
+func TestCorrectionQuotesTheRejectedCandidate(t *testing.T) {
+	p := &mock.Provider{Replies: []string{"fix: shorten the overly long subject line", "feat: ok"}}
+
+	if _, err := gen.Generate(context.Background(), p, req(p, 2)); err != nil {
+		t.Fatal(err)
+	}
+	turn := p.SessionTurns(0)[1]
+	if !strings.Contains(turn, "fix: shorten the overly long subject line") {
+		t.Errorf("correction does not quote the rejected candidate:\n%s", turn)
+	}
+	if !strings.Contains(turn, "must start with `feat: `") {
+		t.Errorf("correction does not carry the problem:\n%s", turn)
+	}
+}
+
+func TestDefaultCorrectionBoundsTheQuote(t *testing.T) {
+	turn := gen.DefaultCorrection(strings.Repeat("x", 1000), []string{"too long"})
+	if strings.Contains(turn, strings.Repeat("x", 401)) {
+		t.Errorf("correction quotes a runaway candidate in full: %d runes", utf8.RuneCountInString(turn))
+	}
+}
+
+func TestDefaultCorrectionWithoutCandidate(t *testing.T) {
+	turn := gen.DefaultCorrection("", []string{"model returned empty output"})
+	if strings.Contains(turn, "Your previous answer:") {
+		t.Errorf("correction quotes an empty candidate:\n%s", turn)
+	}
+	if !strings.Contains(turn, "- model returned empty output") {
+		t.Errorf("correction lost the problem:\n%s", turn)
+	}
+}
+
 func TestGenerateExhaustsAttempts(t *testing.T) {
 	p := &mock.Provider{Replies: []string{"one", "two", "three"}}
 
@@ -184,7 +216,7 @@ func TestGenerateClosesSessionOnPanic(t *testing.T) {
 func TestGenerateCustomCorrection(t *testing.T) {
 	p := &mock.Provider{Replies: []string{"nope", "feat: ok"}}
 	r := req(p, 2)
-	r.Correction = func(problems []string) string { return "FIXIT: " + strings.Join(problems, ",") }
+	r.Correction = func(_ string, problems []string) string { return "FIXIT: " + strings.Join(problems, ",") }
 
 	if _, err := gen.Generate(context.Background(), p, r); err != nil {
 		t.Fatal(err)

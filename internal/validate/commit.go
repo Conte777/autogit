@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 // Footer is one `Key: Value` trailer line of a commit message.
@@ -130,15 +132,19 @@ func (r CommitRules) Check(raw string) (string, []string) {
 	var problems []string
 	problems = append(problems, r.checkPrefix(c)...)
 
-	if r.MaxSubject > 0 && len([]rune(c.Subject)) > r.MaxSubject {
-		problems = append(problems, fmt.Sprintf("subject must be at most %d characters (got %d)",
-			r.MaxSubject, len([]rune(c.Subject))))
+	if n := len([]rune(c.Subject)); r.MaxSubject > 0 && n > r.MaxSubject {
+		problems = append(problems, fmt.Sprintf(
+			"subject is %d characters, the limit is %d: shorten it by at least %d characters",
+			n, r.MaxSubject, n-r.MaxSubject))
 	}
 	if r.NoTrailingPeriod && strings.HasSuffix(c.Subject, ".") {
 		problems = append(problems, "subject must not end with a period")
 	}
-	if r.LowercaseDesc && c.Desc != strings.ToLower(c.Desc) {
-		problems = append(problems, "description must be lowercase")
+	if r.LowercaseDesc {
+		if first, _ := utf8.DecodeRuneInString(c.Desc); unicode.IsUpper(first) {
+			problems = append(problems,
+				"description must not start with a capital letter; code identifiers later in it keep their case")
+		}
 	}
 	if r.BranchSlug != "" && strings.EqualFold(c.Desc, r.BranchSlug) {
 		problems = append(problems, "description is copied from the branch name; describe the diff instead")
