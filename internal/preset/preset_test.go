@@ -123,6 +123,104 @@ func TestTicketPromptMentionsTheTicketAsPrefix(t *testing.T) {
 	}
 }
 
+func TestTicketPromptBudgetsTheDescription(t *testing.T) {
+	p, _ := preset.Builtin("ticket")
+	commit, _ := p.CommitPrompt()
+
+	system, _, err := commit.Render(prompt.CommitData{Ticket: "CUS-2023", MaxSubject: 50, MaxDescAfterTicket: 40})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(system, "the description gets at most 40 characters") {
+		t.Errorf("system prompt does not state the description budget:\n%s", system)
+	}
+	if !strings.Contains(system, "A description that fits, 38 characters") {
+		t.Errorf("system prompt has no example near the budget:\n%s", system)
+	}
+
+	system, _, err = commit.Render(prompt.CommitData{MaxSubject: 50})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(system, "the description gets at most") {
+		t.Errorf("system prompt budgets a description behind a ticket that does not exist:\n%s", system)
+	}
+	if !strings.Contains(system, "A subject that fits, 48 characters") {
+		t.Errorf("system prompt has no example near the limit:\n%s", system)
+	}
+
+	system, _, err = commit.Render(prompt.CommitData{MaxSubject: 30})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(system, "A subject that fits") {
+		t.Errorf("system prompt shows an example over a 30-character limit:\n%s", system)
+	}
+}
+
+func TestTicketPromptWithoutTicketMakesRefactoringFeat(t *testing.T) {
+	p, _ := preset.Builtin("ticket")
+	commit, _ := p.CommitPrompt()
+
+	system, _, err := commit.Render(prompt.CommitData{MaxSubject: 50})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"only two types exist", "refactoring", "Never write\n  `refactor`"} {
+		if !strings.Contains(system, want) {
+			t.Errorf("system prompt lacks %q:\n%s", want, system)
+		}
+	}
+}
+
+func TestCommitPromptsKeepIdentifierCaseAndShowAnExample(t *testing.T) {
+	for _, name := range preset.Names() {
+		p, _ := preset.Builtin(name)
+		commit, _ := p.CommitPrompt()
+		system, _, err := commit.Render(prompt.CommitData{MaxSubject: p.Commit.MaxSubject, ScopeMode: validate.ScopeSuggest})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(system, "lowercase English") || !strings.Contains(system, "Code identifiers keep their") {
+			t.Errorf("%s: system prompt still asks for an all-lowercase description:\n%s", name, system)
+		}
+		if !strings.Contains(system, "A subject that fits") {
+			t.Errorf("%s: system prompt has no example subject near the limit:\n%s", name, system)
+		}
+	}
+}
+
+func TestBranchPromptPresentsTheDescriptionAsData(t *testing.T) {
+	for _, name := range preset.Names() {
+		p, _ := preset.Builtin(name)
+		branch, _ := p.BranchPrompt()
+		for _, needType := range []bool{false, true} {
+			system, user, err := branch.Render(prompt.BranchData{Description: "fix the login", NeedType: needType, Types: p.Branch.Types, MaxSlugLen: 40})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(user, "Describe") || !strings.Contains(user, "Change description:\nfix the login") {
+				t.Errorf("%s: user turn does not present the description as data:\n%s", name, user)
+			}
+			want := "becomes add-github-login"
+			if needType {
+				want = "becomes feat add-github-login"
+			}
+			if !strings.Contains(system, want) {
+				t.Errorf("%s: system prompt lacks the example %q:\n%s", name, want, system)
+			}
+		}
+
+		system, _, err := branch.Render(prompt.BranchData{MaxSlugLen: 40, Files: []string{"a.go"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(system, "change description") {
+			t.Errorf("%s: system prompt mentions a description when there is none:\n%s", name, system)
+		}
+	}
+}
+
 func TestConventionalPromptDropsRefsWithoutTicket(t *testing.T) {
 	p, _ := preset.Builtin("conventional")
 	commit, _ := p.CommitPrompt()

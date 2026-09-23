@@ -38,7 +38,7 @@ type Request struct {
 	Validator Validator
 	Attempts  int
 	// Correction renders the follow-up turn. Nil uses DefaultCorrection.
-	Correction func(problems []string) string
+	Correction func(candidate string, problems []string) string
 }
 
 // Result is a value that passed validation.
@@ -95,17 +95,26 @@ func LastCandidate(err error) string {
 	if !errors.As(err, &failure) || failure.Last == "" {
 		return ""
 	}
-	last := []rune(failure.Last)
-	if len(last) > maxCandidate {
-		return "last candidate: " + string(last[:maxCandidate]) + "…"
+	return "last candidate: " + clip(failure.Last)
+}
+
+func clip(candidate string) string {
+	if r := []rune(candidate); len(r) > maxCandidate {
+		return string(r[:maxCandidate]) + "…"
 	}
-	return "last candidate: " + failure.Last
+	return candidate
 }
 
 // DefaultCorrection is the follow-up sent after a rejected candidate.
-func DefaultCorrection(problems []string) string {
+func DefaultCorrection(candidate string, problems []string) string {
 	var b strings.Builder
-	b.WriteString("Your previous answer was rejected:\n")
+	if candidate != "" {
+		b.WriteString("Your previous answer:\n\n")
+		b.WriteString(clip(candidate))
+		b.WriteString("\n\nIt was rejected:\n")
+	} else {
+		b.WriteString("Your previous answer was rejected:\n")
+	}
 	for _, p := range problems {
 		b.WriteString("- ")
 		b.WriteString(p)
@@ -153,7 +162,7 @@ func Generate(ctx context.Context, p Provider, r Request) (Result, error) {
 		if len(problems) == 0 {
 			return Result{Value: last, Attempts: attempt}, nil
 		}
-		turn = correction(problems)
+		turn = correction(last, problems)
 	}
 
 	return Result{}, &FailureError{

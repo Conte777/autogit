@@ -258,8 +258,9 @@ load time, not halfway through a commit.
 ### What the validator does and does not enforce
 
 It enforces what a diff-blind checker can prove: the subject shape, the length
-limit, lowercase, no trailing period, no body when the format is single-line, a
-description that is not simply the branch name. It does **not** enforce "there
+limit, a description that starts with a lowercase letter (code identifiers
+later in it keep their case), no trailing period, no body when the format is
+single-line, a description that is not simply the branch name. It does **not** enforce "there
 should be a body here" or "this change is breaking" — those are not decidable
 from the message alone, and enforcing them burns every retry and then rejects a
 perfectly good commit.

@@ -315,6 +315,22 @@ func TestCommitOnDetachedHeadSkipsTicketExtraction(t *testing.T) {
 	}
 }
 
+func TestTicketPromptStatesTheDescriptionBudget(t *testing.T) {
+	e := newEnv(t, "CUS-2023: add the second file")
+	e.cfg.Preset = "ticket"
+	e.commitFile("a.txt", "one\n", "init")
+	e.git("switch", "-c", "CUS-2023/add-thing")
+	e.write("b.txt", "two\n")
+	e.git("add", ".")
+
+	if _, err := e.app().Commit(context.Background(), app.CommitRequest{Stage: app.StageStaged, Preview: true}); err != nil {
+		t.Fatal(err)
+	}
+	if system := systemPromptOf(t, e.prov); !strings.Contains(system, "the description gets at most 40 characters") {
+		t.Errorf("system prompt does not budget 50 - len(\"CUS-2023: \") for the description:\n%s", system)
+	}
+}
+
 // diverge builds `main` and `side` with conflicting edits to a.txt, and an
 // `extra` branch touching only c.txt, which merges into anything cleanly.
 func (e *env) diverge() {

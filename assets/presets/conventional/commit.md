@@ -19,7 +19,13 @@ Format:
 Rules for the subject line:
 - `<type>` must be one of: {{range $i, $t := .Types}}{{if $i}}, {{end}}{{$t}}{{end}}.
 - At most {{.MaxSubject}} characters, including the type and the scope.
-- `<description>` is lowercase English, imperative mood: add, fix, update, remove, refactor.
+{{- if ge .MaxSubject 71}}
+  A subject that fits, 71 characters:
+  feat(server): add ShutdownWithContext to drain open connections on exit
+{{- end}}
+- `<description>` is English in the imperative mood (add, fix, update, remove,
+  refactor) and starts with a lowercase letter. Code identifiers keep their
+  case: `add ShutdownWithContext`, not `add shutdownwithcontext`.
 - No period at the end.
 - Describe the actual change visible in the diff. Never restate the branch name.
 {{- if .Ticket}}

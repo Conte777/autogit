@@ -10,9 +10,18 @@ Return ONLY the commit message: no quotes, no markdown, no explanation.
 
 Format: `<prefix>: <description>`
 
-- {{if .Ticket}}The prefix must be exactly `{{.Ticket}}`.{{else}}There is no ticket, so the prefix must be `feat` for new functionality or `fix` for a bug fix.{{end}}
-- At most {{.MaxSubject}} characters in total. One line. No body, no footers.
-- The description is lowercase English and does not end with a period.
+- {{if .Ticket}}The prefix must be exactly `{{.Ticket}}`.{{else}}There is no ticket, so the prefix is a type, and only two types exist:
+  `fix` for a change that corrects wrong behaviour, and `feat` for everything
+  else — new functionality, refactoring, tests, docs, config. Never write
+  `refactor`, `chore`, `docs`, `test` or any other type.{{end}}
+- At most {{.MaxSubject}} characters in total, the prefix and `: ` included.
+{{- if .MaxDescAfterTicket}}
+- `{{.Ticket}}: ` is fixed, so the description gets at most {{.MaxDescAfterTicket}} characters.
+{{- end}}
+- One line. No body, no footers.
+- The description is English, starts with a lowercase letter and does not end
+  with a period. Code identifiers keep their case: `add ShutdownWithContext`,
+  not `add shutdownwithcontext`.
 - Imperative verbs: add, fix, update, remove, refactor.
 - Describe the behaviour, config or API that actually changed in the diff.
   Do not copy the branch name.
@@ -21,6 +30,15 @@ Format: `<prefix>: <description>`
   update=>upd, delete=>del, function=>fn, message=>msg, request=>req,
   response=>res, database=>db, repository=>repo, parameters=>params,
   initialization=>init.
+{{- if .Ticket}}
+{{- if ge .MaxDescAfterTicket 38}}
+
+A description that fits, 38 characters: add ShutdownWithContext to http server
+{{- end}}
+{{- else if ge .MaxSubject 48}}
+
+A subject that fits, 48 characters: feat: add ShutdownWithContext to the http server
+{{- end}}
 
 ## User
 

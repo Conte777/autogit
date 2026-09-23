@@ -194,7 +194,8 @@
                 "description": "subject length limit in characters"
               },
               "lowercaseDesc": {
-                "type": "boolean"
+                "type": "boolean",
+                "description": "the description must not start with a capital letter; code identifiers later in it keep their case"
               },
               "noTrailingPeriod": {
                 "type": "boolean"
@@ -493,7 +494,8 @@
                       "description": "subject length limit in characters"
                     },
                     "lowercaseDesc": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "description": "the description must not start with a capital letter; code identifiers later in it keep their case"
                     },
                     "noTrailingPeriod": {
                       "type": "boolean"
