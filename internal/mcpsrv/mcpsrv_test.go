@@ -100,6 +100,14 @@ func TestCommitToolDescriptionTellsTheAgentToAsk(t *testing.T) {
 	}
 	var description string
 	for _, tool := range tools.Tools {
+		if tool.Name == "commit" || tool.Name == "branch" {
+			if !strings.Contains(tool.Description, "without separate approval") {
+				t.Errorf("%s does not permit task-authorized use without separate approval", tool.Name)
+			}
+			if strings.Contains(tool.Description, "Use ONLY when the user explicitly asks") {
+				t.Errorf("%s still requires a separate explicit request", tool.Name)
+			}
+		}
 		if tool.Name == "commit" {
 			description = tool.Description
 		}
