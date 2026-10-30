@@ -11,6 +11,7 @@
       "enum": [
         "anthropic",
         "claude-cli",
+        "codex-cli",
         "gemini",
         "openai"
       ]
@@ -123,6 +124,19 @@
             "thinking": {
               "type": "boolean",
               "description": "let the model think before it answers; off keeps one turn short and predictable"
+            }
+          },
+          "additionalProperties": false
+        },
+        "codex-cli": {
+          "type": "object",
+          "properties": {
+            "binary": {
+              "type": "string"
+            },
+            "model": {
+              "type": "string",
+              "description": "Codex model; omitted uses the CLI default, not the user config"
             }
           },
           "additionalProperties": false
@@ -319,6 +333,7 @@
             "enum": [
               "anthropic",
               "claude-cli",
+              "codex-cli",
               "gemini",
               "openai"
             ]
@@ -431,6 +446,19 @@
                   "thinking": {
                     "type": "boolean",
                     "description": "let the model think before it answers; off keeps one turn short and predictable"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "codex-cli": {
+                "type": "object",
+                "properties": {
+                  "binary": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string",
+                    "description": "Codex model; omitted uses the CLI default, not the user config"
                   }
                 },
                 "additionalProperties": false

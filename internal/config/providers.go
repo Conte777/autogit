@@ -39,6 +39,13 @@ var providerSpecs = []ProviderSpec{
 		},
 	},
 	{
+		Name:  "codex-cli",
+		Model: func(p *Providers) *string { return &p.CodexCLI.Model },
+		defaults: func(p *Providers) {
+			p.CodexCLI = CodexCLI{Binary: "codex"}
+		},
+	},
+	{
 		Name:   "gemini",
 		EnvKey: "GEMINI_API_KEY",
 		HTTP:   func(p *Providers) *HTTPProvider { return &p.Gemini },

@@ -12,8 +12,9 @@ The generation core knows nothing about transports or message formats. Providers
 and presets plug in from the outside, so switching from a Claude subscription to
 your own API key is a one-line config change, not a rewrite.
 
-- **Four providers**: `claude-cli` (your existing Claude subscription, via the
-  `claude` binary), `anthropic`, `openai` (also Ollama and LM Studio through
+- **Five providers**: `claude-cli` (your existing Claude subscription, via the
+  `claude` binary), `codex-cli` (your ChatGPT subscription, via the installed
+  Codex CLI), `anthropic`, `openai` (also Ollama and LM Studio through
   `baseUrl`), `gemini`.
 - **Three surfaces**: the CLI, an MCP server for agents, and a Claude Code
   `UserPromptSubmit` hook. The Claude Code plugin carries the hook, the slash
@@ -139,6 +140,7 @@ or `~/.config/autogit/config.json` → built-in defaults.
   "providers": {
     "anthropic":  { "model": "claude-haiku-4-5", "baseUrl": "https://api.anthropic.com/v1", "maxTokens": 1024 },
     "claude-cli": { "binary": "claude", "model": "haiku", "thinking": false },
+    "codex-cli":  { "binary": "codex" },
     "openai":     { "model": "gpt-4.1-mini", "baseUrl": "https://api.openai.com/v1", "maxTokens": 1024 },
     "gemini":     { "model": "gemini-2.5-flash", "baseUrl": "https://generativelanguage.googleapis.com/v1beta", "maxTokens": 1024 }
   }
@@ -365,6 +367,46 @@ cannot switch thinking off will think regardless.
 escape hatch, and it is tested rather than theoretical — `claude -p` has drifted
 away from subscription usage twice already, and if it goes for good, autogit
 survives it by changing one line of config.
+
+## ChatGPT subscription through Codex
+
+`codex-cli` runs the official installed Codex CLI with your existing ChatGPT
+login. Sign in with ChatGPT using `codex login` first; `codex login status`
+reports the login method. autogit never reads or extracts login credentials.
+The provider requires the flags supported by Codex CLI 0.166.0 (the tested
+version); older versions can fail with an unsupported-option error.
+
+Select it in your global autogit config:
+
+```json
+{
+  "provider": "codex-cli",
+  "providers": {
+    "codex-cli": { "binary": "codex" }
+  }
+}
+```
+
+`binary` defaults to `codex` on PATH. Set `model` in this section, or pass
+`--model`, to select a model available to your subscription. Otherwise Codex
+uses its built-in default. The provider ignores the Codex user config, so its
+configured model, hooks and MCP servers are not inherited.
+
+Each attempt runs [`codex exec`](https://learn.chatgpt.com/docs/non-interactive-mode)
+in a temporary directory with a read-only sandbox, project instructions disabled,
+and shell, apps, hooks, multi-agent and skill search disabled. It sends the system
+prompt and complete session history through stdin. A rejected candidate and its
+correction remain in that history for the next attempt. Ephemeral mode avoids
+saved session transcripts; Codex may still maintain its own operational state.
+autogit removes the temporary directory after each attempt, including errors and
+cancellation, and reads only the final-answer file. Child stdout never reaches
+autogit's stdout.
+
+The child requires ChatGPT login and receives neither `OPENAI_API_KEY` nor
+`CODEX_API_KEY`. It does not fall back to the paid OpenAI API. Subscription
+limits, expired login, process failures and missing answers are reported as
+provider errors. The existing `openai` provider remains available for API-key
+use. `codex-cli` settings are global-only, like all provider settings.
 
 ## Development
 

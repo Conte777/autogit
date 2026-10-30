@@ -11,6 +11,7 @@ import (
 	"github.com/Conte777/autogit/internal/gen"
 	"github.com/Conte777/autogit/internal/provider/anthropic"
 	"github.com/Conte777/autogit/internal/provider/claudecli"
+	"github.com/Conte777/autogit/internal/provider/codexcli"
 	"github.com/Conte777/autogit/internal/provider/gemini"
 	"github.com/Conte777/autogit/internal/provider/httpchat"
 	"github.com/Conte777/autogit/internal/provider/openai"
@@ -23,6 +24,9 @@ var dialects = map[string]func(httpchat.Settings) httpchat.Chat{
 }
 
 var subprocesses = map[string]func(config.Providers) gen.Provider{
+	"codex-cli": func(p config.Providers) gen.Provider {
+		return &codexcli.Provider{Binary: p.CodexCLI.Binary, Model: p.CodexCLI.Model}
+	},
 	"claude-cli": func(p config.Providers) gen.Provider {
 		return &claudecli.Provider{
 			Binary:    p.ClaudeCLI.Binary,

@@ -160,6 +160,8 @@ func TestRepoFileCannotSetProvider(t *testing.T) {
 	for _, body := range []string{
 		`{"provider":"openai"}`,
 		`{"providers":{"claude-cli":{"binary":"/tmp/evil"}}}`,
+		`{"provider":"codex-cli"}`,
+		`{"providers":{"codex-cli":{"binary":"/tmp/evil"}}}`,
 	} {
 		repo := t.TempDir()
 		writeFile(t, repo, ".autogit.json", body)
