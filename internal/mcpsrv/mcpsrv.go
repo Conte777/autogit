@@ -65,7 +65,8 @@ func (s *Server) Register(m *mcp.Server) {
 		Name: "commit",
 		Description: "Commit the staged changes with a message generated and validated " +
 			"server-side from the diff. You do not write or pass the message.\n\n" +
-			"Use ONLY when the user explicitly asks to commit.\n\n" +
+			"Use as needed to complete the user's requested task. Commits to " +
+			"unprotected branches may proceed without separate approval.\n\n" +
 			"Committing to a branch autogit's `protectedBranches` declares protected " +
 			"needs the user's explicit yes, obtained by you BEFORE calling this tool — " +
 			"ask them directly (with `AskUserQuestion` where you have it) and wait for " +
@@ -82,7 +83,8 @@ func (s *Server) Register(m *mcp.Server) {
 		Name: "branch",
 		Description: "Create and switch to a new branch named <prefix>/<slug>. The slug is " +
 			"generated server-side: pass a short human description, not a slug.\n\n" +
-			"Use ONLY when the user explicitly asks for a new branch.",
+			"Use as needed to complete the user's requested task. Creating a branch " +
+			"may proceed without separate approval.",
 	}, s.branch)
 }
 

@@ -335,7 +335,10 @@ Runs the MCP server on stdio for an agent that has no plugin to carry it.
 It exposes `commit` and `branch`. The tool generates and validates the message
 itself; the agent never writes or passes one. The tools carry no
 `allowProtectedBranch` parameter: whether a protected branch may be committed to
-is your configuration's answer, not an argument of the call.
+is your configuration's answer, not an argument of the call. An agent may create
+branches and commit to unprotected branches as needed for your requested task,
+without separate approval. Explicit consent is required for commits to branches
+listed in `protectedBranches`.
 
 By default a protected branch is refused outright, and only a human lifts it —
 `autogit commit --force` in a terminal, or `/autogit:commit force` in Claude
