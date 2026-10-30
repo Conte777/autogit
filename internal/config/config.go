@@ -64,6 +64,7 @@ type MCP struct {
 type Providers struct {
 	Anthropic HTTPProvider `json:"anthropic"`
 	ClaudeCLI ClaudeCLI    `json:"claude-cli"`
+	CodexCLI  CodexCLI     `json:"codex-cli"`
 	OpenAI    HTTPProvider `json:"openai"`
 	Gemini    HTTPProvider `json:"gemini"`
 }
@@ -81,6 +82,11 @@ type ClaudeCLI struct {
 	Model     string   `json:"model,omitempty"`
 	ExtraArgs []string `json:"extraArgs,omitempty"`
 	Thinking  bool     `json:"thinking" jsonschema:"let the model think before it answers; off keeps one turn short and predictable"`
+}
+
+type CodexCLI struct {
+	Binary string `json:"binary,omitempty"`
+	Model  string `json:"model,omitempty" jsonschema:"Codex model; omitted uses the CLI default, not the user config"`
 }
 
 // PresetOverride is a partial preset kept as raw JSON so it can be decoded on
